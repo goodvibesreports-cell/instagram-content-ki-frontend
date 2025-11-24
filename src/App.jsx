@@ -1,89 +1,68 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const BACKEND_URL = 'https://instagram-content-ki-backend.onrender.com'; // Dein Render Backend
+const BACKEND_URL = 'https://instagram-content-ki-backend.onrender.com';
 
 function App() {
   const [file, setFile] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [message, setMessage] = useState('');
+  const [category, setCategory] = useState('');
   const [prompts, setPrompts] = useState([]);
   const [videoIdeas, setVideoIdeas] = useState([]);
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [customResult, setCustomResult] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Datei auswählen
   const handleFileChange = (e) => setFile(e.target.files[0]);
 
-  // Datei hochladen
   const handleUpload = async () => {
     if (!file) return alert('Bitte JSON Datei auswählen');
-
     const formData = new FormData();
     formData.append('file', file);
 
     try {
       const res = await axios.post(`${BACKEND_URL}/upload`, formData);
       setMessage(res.data.message);
-
-      // Lokale Anzeige der Posts
       const text = await file.text();
       setPosts(JSON.parse(text));
-
-      setPrompts([]);
-      setVideoIdeas([]);
-      setCustomResult('');
     } catch (err) {
       console.error(err);
-      setMessage(err.response?.data?.error || 'Upload fehlgeschlagen');
+      setMessage('Upload fehlgeschlagen');
     }
   };
 
-  // Prompts generieren
   const handleGeneratePrompts = async () => {
+    if (!posts.length) return alert('Bitte zuerst Posts hochladen');
     try {
-      const res = await axios.post(`${BACKEND_URL}/generate-prompts`);
+      const res = await axios.post(`${BACKEND_URL}/generate-prompts`, { category });
       setPrompts(res.data.prompts);
-      setVideoIdeas([]);
     } catch (err) {
-      setMessage(err.response?.data?.error || 'Prompts Generierung fehlgeschlagen');
+      console.error(err);
+      setPrompts([]);
     }
   };
 
-  // Videoideen generieren
   const handleGenerateVideoIdeas = async () => {
     if (!prompts.length) return alert('Bitte zuerst Prompts generieren');
     try {
       const res = await axios.post(`${BACKEND_URL}/generate-video-ideas`, { prompts });
       setVideoIdeas(res.data.videoIdeas);
     } catch (err) {
-      setMessage(err.response?.data?.error || 'Videoideen Generierung fehlgeschlagen');
-    }
-  };
-
-  // Eigenen Prompt generieren
-  const handleCustomPrompt = async () => {
-    if (!customPrompt) return alert('Bitte Prompt eingeben');
-    try {
-      const res = await axios.post(`${BACKEND_URL}/generate`, { prompt: customPrompt });
-      setCustomResult(res.data.result);
-    } catch (err) {
-      setCustomResult(err.response?.data?.error || 'Generierung fehlgeschlagen');
+      console.error(err);
+      setVideoIdeas([]);
     }
   };
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
       <h1>Instagram Content KI</h1>
 
-      <section>
-        <h2>1️⃣ JSON Datei hochladen</h2>
+      <div>
+        <h2>1. JSON Datei hochladen</h2>
         <input type="file" accept=".json" onChange={handleFileChange} />
         <button onClick={handleUpload}>Upload</button>
-        {message && <p>{message}</p>}
-      </section>
+        <p>{message}</p>
+      </div>
 
-      <section>
+      <div>
         <h2>Posts</h2>
         <ul>
           {posts.map((p, idx) => (
@@ -92,41 +71,38 @@ function App() {
             </li>
           ))}
         </ul>
-      </section>
+      </div>
 
-      <section>
-        <h2>2️⃣ Prompts generieren</h2>
-        <button onClick={handleGeneratePrompts}>Prompts erstellen</button>
+      <div>
+        <h2>2. Kategorie auswählen (optional)</h2>
+        <select value={category} onChange={e => setCategory(e.target.value)}>
+          <option value="">Keine Auswahl</option>
+          <option value="Humor">Humor</option>
+          <option value="Tutorial">Tutorial</option>
+          <option value="Challenge">Challenge</option>
+        </select>
+        <button onClick={handleGeneratePrompts}>Prompts generieren</button>
+      </div>
+
+      <div>
+        <h2>3. Generierte Prompts</h2>
         <ul>
           {prompts.map((p, idx) => <li key={idx}>{p}</li>)}
         </ul>
-      </section>
+        <button onClick={handleGenerateVideoIdeas}>Videoideen generieren</button>
+      </div>
 
-      <section>
-        <h2>3️⃣ Videoideen generieren</h2>
-        <button onClick={handleGenerateVideoIdeas}>Videoideen erstellen</button>
+      <div>
+        <h2>4. Videoideen / Skripte</h2>
         <ul>
           {videoIdeas.map((v, idx) => (
             <li key={idx}>
-              <strong>Prompt:</strong> {v.prompt} <br />
-              <strong>Idee:</strong> {v.idea}
+              <b>Prompt:</b> {v.prompt}<br/>
+              <b>Idee:</b> {v.idea}
             </li>
           ))}
         </ul>
-      </section>
-
-      <section>
-        <h2>4️⃣ Eigenen Prompt generieren</h2>
-        <input
-          type="text"
-          placeholder="Dein Prompt..."
-          value={customPrompt}
-          onChange={(e) => setCustomPrompt(e.target.value)}
-          style={{ width: '60%' }}
-        />
-        <button onClick={handleCustomPrompt}>Generieren</button>
-        {customResult && <p>{customResult}</p>}
-      </section>
+      </div>
     </div>
   );
 }
