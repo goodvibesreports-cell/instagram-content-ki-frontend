@@ -1,100 +1,73 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react'
+import axios from 'axios'
 
-// **Hier Backend-URL einstellen**
-// Für lokal: http://localhost:5000
-// Für Render: https://instagram-content-ki-backend.onrender.com
-const BACKEND_URL = "https://instagram-content-ki-backend.onrender.com";
+// Backend URL auf Render
+const BACKEND_URL = 'https://instagram-content-ki-backend.onrender.com'
 
 function App() {
-  const [file, setFile] = useState(null);
-  const [prompt, setPrompt] = useState("");
-  const [generated, setGenerated] = useState("");
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const [file, setFile] = useState(null)
+  const [posts, setPosts] = useState([])
+  const [prompt, setPrompt] = useState('')
+  const [generated, setGenerated] = useState('')
+  const [message, setMessage] = useState('')
 
   const handleUpload = async () => {
-    if (!file) return alert("Bitte JSON-Datei auswählen");
-    const formData = new FormData();
-    formData.append("file", file);
-
+    if (!file) return alert('Datei auswählen')
+    const formData = new FormData()
+    formData.append('file', file)
     try {
-      setLoading(true);
-      const res = await axios.post(`${BACKEND_URL}/upload`, formData);
-      alert(`Upload erfolgreich: ${res.data.count} Posts`);
-
-      // Posts direkt vom Backend abrufen
-      const postsRes = await axios.get(`${BACKEND_URL}/posts`);
-      setPosts(postsRes.data.posts);
+      const res = await axios.post(`${BACKEND_URL}/upload`, formData)
+      setMessage(res.data.message)
+      fetchPosts()
     } catch (err) {
-      alert("Upload fehlgeschlagen: " + (err.response?.data?.error || err.message));
-    } finally {
-      setLoading(false);
+      setMessage('Upload fehlgeschlagen: ' + err.response?.data?.error)
     }
-  };
+  }
+
+  const fetchPosts = async () => {
+    const res = await axios.get(`${BACKEND_URL}/posts`)
+    setPosts(res.data)
+  }
 
   const handleGenerate = async () => {
-    if (!prompt) return alert("Bitte Prompt eingeben");
-
+    if (!prompt) return alert('Prompt eingeben')
     try {
-      setLoading(true);
-      const res = await axios.post(`${BACKEND_URL}/generate`, { prompt });
-      setGenerated(res.data.result);
+      const res = await axios.post(`${BACKEND_URL}/generate`, { prompt })
+      setGenerated(res.data.generated)
     } catch (err) {
-      alert("Generierung fehlgeschlagen: " + (err.response?.data?.error || err.message));
-    } finally {
-      setLoading(false);
+      setMessage('Generierung fehlgeschlagen: ' + err.response?.data?.error)
     }
-  };
+  }
+
+  useEffect(() => { fetchPosts() }, [])
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: '2rem' }}>
       <h1>Instagram Content KI</h1>
 
       <div>
-        <h2>1️⃣ JSON-Datei hochladen</h2>
-        <input type="file" accept=".json" onChange={handleFileChange} />
-        <button onClick={handleUpload} disabled={loading}>
-          {loading ? "Lade..." : "Hochladen"}
-        </button>
+        <input type="file" accept=".json" onChange={e => setFile(e.target.files[0])} />
+        <button onClick={handleUpload}>Upload</button>
       </div>
+      <p>{message}</p>
 
-      {posts.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Hochgeladene Posts:</h2>
-          <ul>
-            {posts.map(post => (
-              <li key={post.post_id}>
-                {post.post_id}: {post.caption} ({post.likes} Likes, {post.comments} Kommentare, {post.views} Views)
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <h2>Posts</h2>
+      <ul>
+        {posts.map(p => (
+          <li key={p.post_id}>
+            {p.caption} — Likes: {p.likes}, Comments: {p.comments}, Views: {p.views}
+          </li>
+        ))}
+      </ul>
 
-      <div style={{ marginTop: 20 }}>
-        <h2>2️⃣ Content generieren</h2>
-        <input
-          type="text"
-          placeholder="Prompt eingeben"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-        <button onClick={handleGenerate} disabled={loading}>
-          {loading ? "Generiere..." : "Generieren"}
-        </button>
+      <div>
+        <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Prompt eingeben" style={{ width: '400px' }} />
+        <button onClick={handleGenerate}>Generieren</button>
       </div>
-
-      {generated && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Generierter Content:</h2>
-          <p>{generated}</p>
-        </div>
-      )}
+      <h2>Generated Content</h2>
+      <p>{generated}</p>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
