@@ -1,0 +1,2 @@
+[00:00:01.972] Server  LOG      ✓ Ready in 1133ms
+[00:00:45.466] Browser ERROR   429 You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.
