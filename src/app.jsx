@@ -1,73 +1,80 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import React, { useState } from 'react';
+import axios from 'axios';
 
-// Backend URL auf Render
-const BACKEND_URL = 'https://instagram-content-ki-backend.onrender.com'
+const BACKEND_URL = 'https://instagram-content-ki-backend.onrender.com';
 
 function App() {
-  const [file, setFile] = useState(null)
-  const [posts, setPosts] = useState([])
-  const [prompt, setPrompt] = useState('')
-  const [generated, setGenerated] = useState('')
-  const [message, setMessage] = useState('')
+  const [file, setFile] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [prompt, setPrompt] = useState('');
+  const [result, setResult] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleFileChange = (e) => setFile(e.target.files[0]);
 
   const handleUpload = async () => {
-    if (!file) return alert('Datei auswählen')
-    const formData = new FormData()
-    formData.append('file', file)
-    try {
-      const res = await axios.post(`${BACKEND_URL}/upload`, formData)
-      setMessage(res.data.message)
-      fetchPosts()
-    } catch (err) {
-      setMessage('Upload fehlgeschlagen: ' + err.response?.data?.error)
-    }
-  }
+    if (!file) return alert('Bitte JSON Datei auswählen');
+    const formData = new FormData();
+    formData.append('file', file);
 
-  const fetchPosts = async () => {
-    const res = await axios.get(`${BACKEND_URL}/posts`)
-    setPosts(res.data)
-  }
+    try {
+      const res = await axios.post(`${BACKEND_URL}/upload`, formData);
+      setMessage(res.data.message);
+      const text = await file.text();
+      setPosts(JSON.parse(text));
+    } catch (err) {
+      console.error(err);
+      setMessage('Upload fehlgeschlagen');
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!prompt) return alert('Prompt eingeben')
+    if (!prompt) return alert('Bitte Prompt eingeben');
     try {
-      const res = await axios.post(`${BACKEND_URL}/generate`, { prompt })
-      setGenerated(res.data.generated)
+      const res = await axios.post(`${BACKEND_URL}/generate`, { prompt });
+      setResult(res.data.result);
     } catch (err) {
-      setMessage('Generierung fehlgeschlagen: ' + err.response?.data?.error)
+      console.error(err);
+      setResult('Generierung fehlgeschlagen');
     }
-  }
-
-  useEffect(() => { fetchPosts() }, [])
+  };
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
       <h1>Instagram Content KI</h1>
 
       <div>
-        <input type="file" accept=".json" onChange={e => setFile(e.target.files[0])} />
+        <h2>1. JSON Datei hochladen</h2>
+        <input type="file" accept=".json" onChange={handleFileChange} />
         <button onClick={handleUpload}>Upload</button>
+        <p>{message}</p>
       </div>
-      <p>{message}</p>
-
-      <h2>Posts</h2>
-      <ul>
-        {posts.map(p => (
-          <li key={p.post_id}>
-            {p.caption} — Likes: {p.likes}, Comments: {p.comments}, Views: {p.views}
-          </li>
-        ))}
-      </ul>
 
       <div>
-        <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Prompt eingeben" style={{ width: '400px' }} />
-        <button onClick={handleGenerate}>Generieren</button>
+        <h2>Posts</h2>
+        <ul>
+          {posts.map((p, idx) => (
+            <li key={idx}>
+              <b>{p.caption}</b> – Likes: {p.likes}, Comments: {p.comments}, Views: {p.views}
+            </li>
+          ))}
+        </ul>
       </div>
-      <h2>Generated Content</h2>
-      <p>{generated}</p>
+
+      <div>
+        <h2>2. Prompt generieren</h2>
+        <textarea
+          rows="4"
+          cols="50"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+        <br />
+        <button onClick={handleGenerate}>Generieren</button>
+        <p>{result}</p>
+      </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
