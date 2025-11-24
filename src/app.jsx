@@ -4,7 +4,7 @@ import axios from 'axios';
 // **Hier Backend-URL einstellen**
 // Für lokal: http://localhost:5000
 // Für Render: https://instagram-content-ki-backend.onrender.com
-const BACKEND_URL = "http://localhost:5000";
+const BACKEND_URL = "https://instagram-content-ki-backend.onrender.com";
 
 function App() {
   const [file, setFile] = useState(null);
