@@ -1,21 +1,21 @@
 // src/main.jsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./index.css";
 
-// Sicherstellen, dass das Root-Element existiert
-const rootElement = document.getElementById('root');
+// Root-Element abrufen
+const rootElement = document.getElementById("root");
+
+// Sicherheitscheck
 if (!rootElement) {
   throw new Error(
-    'Root-Element (#root) nicht gefunden. Stelle sicher, dass <div id="root"></div> in index.html enthalten ist.'
+    'Root-Element nicht gefunden. Stelle sicher, dass <div id="root"></div> in der index.html vorhanden ist.'
   );
 }
 
-// React 18 – Root erstellen
-const root = ReactDOM.createRoot(rootElement);
-
-// App rendern
-root.render(
+// Render der React-App
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
