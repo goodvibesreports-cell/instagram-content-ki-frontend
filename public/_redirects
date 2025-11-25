@@ -1,2 +1,60 @@
-/*    /index.html   200
+# PROJECT RULES — PROFESSIONAL QUALITY GUIDELINES
+
+## ARCHITEKTUR
+- Klare Trennung: Controller / Service / Model / Middleware / Utils
+- Keine doppelte Logik in verschiedenen Dateien
+- Keine redundanten Datenstrukturen
+- Alle neuen Module müssen modular und erweiterbar sein
+- Services enthalten Kernlogik, Controller sind minimal
+- AI-Prompt-Templates haben eigene Dateien
+
+## FRONTEND UI/UX
+- Moderne, professionelle SaaS-Optik
+- Konsistente Komponenten, Abstände, Typografie
+- Mobile responsive, sauber strukturiertes Layout
+- Keine UI ohne erklärenden Text
+- Loading-, Error- und Success-Stati überall vorhanden
+- UI an Top-Produkten orientieren (OpenAI, Notion, Figma)
+
+## AUTHENTIFIZIERUNG
+- Stabile Registrierung & Login
+- E-Mail-Verifizierung mit Token
+- Nur verifizierte Nutzer dürfen sich einloggen
+- Serverseitige Validierung aller Eingaben
+- Hashing aller Passwörter, keine sensiblen Daten in Tokens
+- Fehler klar & sicher formulieren
+
+## KI-FUNKTIONEN
+- Klare, strukturierte Prompts (JSON-basiert)
+- Plattformparameter berücksichtigen
+- Fehlerhandling bei der AI-Kommunikation
+- Validierte Ausgaben (try/catch)
+
+## DATABASE QUALITY
+- Saubere MongoDB Models
+- Eindeutige Felder (z. B. email: unique)
+- Konsistente History-Struktur
+- Alle Operationen mit try/catch
+
+## HISTORY
+- Keine leeren Einträge
+- Plattform, Input, Output, Datum immer gesetzt
+- Keine doppelten History-Einträge
+
+## TESTING
+- Registrierung testen
+- Login testen
+- Verifizierung testen
+- Analyse testen
+- Plattformwechsel testen
+- Ungültige Eingaben testen
+- Token abgelaufen testen
+
+## PERFORMANCE
+- Keine unnötigen Re-Renders oder Requests
+- Nur benötigte Daten an die UI geben
+- Wiederverwendbare Komponenten
+
+## ABSCHLUSSREGEL
+Jede neue Funktion MUSS diesen Regeln entsprechen./*    /index.html   200
 
