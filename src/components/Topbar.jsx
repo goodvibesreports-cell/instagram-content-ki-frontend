@@ -3,7 +3,9 @@ import React from "react";
 
 const pageTitles = {
   dashboard: "Dashboard",
+  calendar: "Content Kalender",
   history: "Generierungs-Verlauf",
+  batch: "Batch Generator",
   prompts: "Prompt Generator",
   scripts: "Script Generator",
   hooks: "Hook Generator",
@@ -11,6 +13,9 @@ const pageTitles = {
   titles: "Title Generator",
   trends: "Trend Finder",
   virality: "Virality Analyse",
+  team: "Team Management",
+  style: "KI-Assistent",
+  apikeys: "API Keys",
   settings: "Einstellungen",
   credits: "Credits kaufen"
 };
@@ -22,9 +27,9 @@ export default function Topbar({ theme, onToggleTheme, onLogout, userEmail, cred
     <header className="topbar">
       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
         <button 
-          className="btn btn-ghost btn-icon"
+          className="btn btn-ghost btn-icon mobile-menu-btn"
           onClick={onMenuClick}
-          style={{ display: "none" }} // Nur auf Mobile sichtbar
+          style={{ display: "none" }}
         >
           ☰
         </button>
@@ -32,13 +37,11 @@ export default function Topbar({ theme, onToggleTheme, onLogout, userEmail, cred
       </div>
       
       <div className="topbar-actions">
-        {/* Credits Badge */}
         <div className="credits-badge">
           <span className="icon">⚡</span>
           <span>{credits} Credits</span>
         </div>
         
-        {/* Theme Toggle */}
         <button 
           className="btn btn-ghost btn-icon"
           onClick={onToggleTheme}
@@ -47,7 +50,6 @@ export default function Topbar({ theme, onToggleTheme, onLogout, userEmail, cred
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
         
-        {/* User Menu */}
         <div className="user-menu" onClick={onLogout} title="Ausloggen">
           <div className="user-avatar">{initial}</div>
           <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>

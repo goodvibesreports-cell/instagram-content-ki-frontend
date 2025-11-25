@@ -6,26 +6,31 @@ const navItems = [
     section: "Übersicht",
     items: [
       { id: "dashboard", icon: "📊", label: "Dashboard" },
+      { id: "calendar", icon: "📅", label: "Content Kalender", badge: "NEU" },
       { id: "history", icon: "📜", label: "Verlauf" },
     ]
   },
   {
     section: "KI-Tools",
     items: [
+      { id: "batch", icon: "⚡", label: "Batch Generator", cost: 5, badge: "PRO" },
       { id: "prompts", icon: "✨", label: "Prompt Generator", cost: 1 },
       { id: "scripts", icon: "🎬", label: "Script Generator", cost: 2 },
       { id: "hooks", icon: "🎣", label: "Hook Generator", cost: 1 },
       { id: "captions", icon: "📝", label: "Caption Generator", cost: 1 },
       { id: "titles", icon: "🏷️", label: "Title Generator", cost: 1 },
-      { id: "trends", icon: "📈", label: "Trend Finder", cost: 3, badge: "NEU" },
+      { id: "trends", icon: "📈", label: "Trend Finder", cost: 3 },
       { id: "virality", icon: "🔥", label: "Virality Check", cost: 2 },
     ]
   },
   {
-    section: "Einstellungen",
+    section: "Team & Account",
     items: [
+      { id: "team", icon: "👥", label: "Team", badge: "NEU" },
+      { id: "style", icon: "🎨", label: "KI-Assistent" },
+      { id: "apikeys", icon: "🔑", label: "API Keys" },
       { id: "settings", icon: "⚙️", label: "Einstellungen" },
-      { id: "credits", icon: "💰", label: "Credits kaufen", badge: "PRO" },
+      { id: "credits", icon: "💰", label: "Credits kaufen" },
     ]
   }
 ];
@@ -33,7 +38,6 @@ const navItems = [
 export default function Sidebar({ isOpen, onClose, onNavigate, currentPage }) {
   return (
     <>
-      {/* Overlay für Mobile */}
       {isOpen && (
         <div 
           className="sidebar-overlay"
@@ -42,8 +46,7 @@ export default function Sidebar({ isOpen, onClose, onNavigate, currentPage }) {
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.5)",
-            zIndex: 99,
-            display: "none"
+            zIndex: 99
           }}
         />
       )}
@@ -83,7 +86,7 @@ export default function Sidebar({ isOpen, onClose, onNavigate, currentPage }) {
         
         <div className="sidebar-footer">
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-            Instagram Content KI v2.0
+            Instagram Content KI v3.0
           </div>
         </div>
       </aside>
