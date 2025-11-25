@@ -12,13 +12,29 @@ export const api = axios.create({
 });
 
 export async function registerUser(email, password) {
-  const res = await api.post("/auth/register", { email, password });
-  return res.data;
+  try {
+    const res = await api.post("/auth/register", { email, password });
+    return res.data;
+  } catch (err) {
+    // Axios wirft bei HTTP-Fehlern (400, 500, etc.) eine Exception
+    if (err.response && err.response.data) {
+      return err.response.data; // { error: "..." }
+    }
+    throw err;
+  }
 }
 
 export async function loginUser(email, password) {
-  const res = await api.post("/auth/login", { email, password });
-  return res.data; // { token } oder { error }
+  try {
+    const res = await api.post("/auth/login", { email, password });
+    return res.data; // { token }
+  } catch (err) {
+    // Axios wirft bei HTTP-Fehlern (400, 500, etc.) eine Exception
+    if (err.response && err.response.data) {
+      return err.response.data; // { error: "..." }
+    }
+    throw err;
+  }
 }
 
 export async function fetchMe(token) {

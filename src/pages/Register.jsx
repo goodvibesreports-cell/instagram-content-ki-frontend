@@ -27,8 +27,12 @@ export default function RegisterPage({ isAuthenticated }) {
         setTimeout(() => nav("/login"), 800);
       }
     } catch (err) {
-      console.error(err);
-      setMsg("Fehler bei der Registrierung");
+      console.error("Registration error:", err);
+      if (err.code === "ERR_NETWORK") {
+        setMsg("Server nicht erreichbar. Bitte später erneut versuchen.");
+      } else {
+        setMsg("Fehler bei der Registrierung: " + (err.message || "Unbekannter Fehler"));
+      }
     }
   }
 
