@@ -1,27 +1,41 @@
 // src/components/Layout.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 
-export default function Layout({
-  theme,
-  onToggleTheme,
-  onLogout,
-  userEmail,
-  children,
-}) {
+export default function Layout({ children, theme, onToggleTheme, onLogout, userEmail, credits = 0, onNavigate, currentPage }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   return (
-    <div className={`app app--${theme}`}>
-      <Sidebar />
-      <div className="app-main">
-        <Topbar
+    <div className="dashboard-layout">
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)}
+        onNavigate={onNavigate}
+        currentPage={currentPage}
+      />
+      
+      <main className="main-content">
+        <Topbar 
           theme={theme}
           onToggleTheme={onToggleTheme}
           onLogout={onLogout}
           userEmail={userEmail}
+          credits={credits}
+          onMenuClick={() => setSidebarOpen(true)}
+          currentPage={currentPage}
         />
-        <main className="app-content">{children}</main>
-      </div>
+        
+        <div className="page-content animate-fade-in">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
