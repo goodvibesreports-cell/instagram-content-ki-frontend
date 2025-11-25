@@ -1,49 +1,79 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+// src/pages/Login.jsx
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../api";
 
-export default function Login() {
+export default function LoginPage({ onLogin, isAuthenticated }) {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState("");
 
-  async function handleLogin() {
-    const data = await loginUser(email, password);
-
-    if (data.token) {
-      localStorage.setItem("authToken", data.token);
+  useEffect(() => {
+    if (isAuthenticated) {
       nav("/dashboard");
-    } else {
-      alert(data.error || "Login fehlgeschlagen");
+    }
+  }, [isAuthenticated, nav]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setMsg("");
+    try {
+      const data = await loginUser(email, password);
+      if (data.token) {
+        onLogin(data.token);
+        setMsg("Login erfolgreich, weiterleiten...");
+        setTimeout(() => nav("/dashboard"), 500);
+      } else {
+        setMsg(data.error || "Login fehlgeschlagen");
+      }
+    } catch (err) {
+      console.error(err);
+      setMsg("Fehler beim Login");
     }
   }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: 400, margin: "0 auto" }}>
-      <h2>Login</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Login</h2>
+        <p className="muted">
+          Melde dich an, um dein Instagram Content KI Dashboard zu nutzen.
+        </p>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 8 }}
-      />
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label>
+            E-Mail
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@mail.com"
+            />
+          </label>
+          <label>
+            Passwort
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+          </label>
 
-      <input
-        placeholder="Passwort"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 8 }}
-      />
+          <button type="submit" className="btn btn-primary auth-submit">
+            Einloggen
+          </button>
 
-      <button onClick={handleLogin} style={{ width: "100%", padding: 10 }}>
-        Login
-      </button>
+          {msg && <p className="status-message">{msg}</p>}
+        </form>
 
-      <p>
-        Noch kein Account? <Link to="/register">Registrieren</Link>
-      </p>
+        <p className="auth-switch">
+          Noch kein Konto? <Link to="/register">Registrieren</Link>
+        </p>
+      </div>
     </div>
   );
 }

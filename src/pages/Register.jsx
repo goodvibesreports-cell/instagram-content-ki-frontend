@@ -1,49 +1,78 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+// src/pages/Register.jsx
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../api";
 
-export default function Register() {
+export default function RegisterPage({ isAuthenticated }) {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState("");
 
-  async function handleRegister() {
-    const data = await registerUser(email, password);
+  useEffect(() => {
+    if (isAuthenticated) {
+      nav("/dashboard");
+    }
+  }, [isAuthenticated, nav]);
 
-    if (data.success) {
-      alert("Registrierung erfolgreich!");
-      nav("/login");
-    } else {
-      alert(data.error || "Fehler");
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setMsg("");
+    try {
+      const data = await registerUser(email, password);
+      if (data.error) {
+        setMsg(data.error);
+      } else {
+        setMsg("Registrierung erfolgreich! Du kannst dich jetzt einloggen.");
+        setTimeout(() => nav("/login"), 800);
+      }
+    } catch (err) {
+      console.error(err);
+      setMsg("Fehler bei der Registrierung");
     }
   }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: 400, margin: "0 auto" }}>
-      <h2>Registrieren</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h2>Registrieren</h2>
+        <p className="muted">
+          Erstelle deinen Account, um die Instagram Content KI zu nutzen.
+        </p>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 8 }}
-      />
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label>
+            E-Mail
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@mail.com"
+            />
+          </label>
+          <label>
+            Passwort
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mind. 6 Zeichen"
+            />
+          </label>
 
-      <input
-        placeholder="Passwort"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 8 }}
-      />
+          <button type="submit" className="btn btn-primary auth-submit">
+            Registrieren
+          </button>
 
-      <button onClick={handleRegister} style={{ width: "100%", padding: 10 }}>
-        Registrieren
-      </button>
+          {msg && <p className="status-message">{msg}</p>}
+        </form>
 
-      <p>
-        Bereits ein Konto? <Link to="/login">Login</Link>
-      </p>
+        <p className="auth-switch">
+          Bereits ein Konto? <Link to="/login">Zum Login</Link>
+        </p>
+      </div>
     </div>
   );
 }
