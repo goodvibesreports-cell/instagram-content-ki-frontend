@@ -21,7 +21,11 @@ export default function RegisterPage({ isAuthenticated }) {
     try {
       const data = await registerUser(email, password);
       if (data.error) {
-        setMsg(data.error);
+        const errorMsg =
+          (typeof data.error === "string"
+            ? data.error
+            : data.error?.message) || "Registrierung fehlgeschlagen";
+        setMsg(errorMsg);
       } else {
         setMsg("Registrierung erfolgreich! Du kannst dich jetzt einloggen.");
         setTimeout(() => nav("/login"), 800);
