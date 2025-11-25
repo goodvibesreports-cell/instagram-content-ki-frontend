@@ -25,7 +25,11 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
         setMsg("Login erfolgreich, weiterleiten...");
         setTimeout(() => nav("/dashboard"), 500);
       } else {
-        setMsg(data.error || "Login fehlgeschlagen");
+        const errorMsg =
+          (typeof data.error === "string"
+            ? data.error
+            : data.error?.message) || "Login fehlgeschlagen";
+        setMsg(errorMsg);
       }
     } catch (err) {
       console.error(err);
