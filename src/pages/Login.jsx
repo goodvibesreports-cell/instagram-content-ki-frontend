@@ -42,9 +42,11 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
+          <label htmlFor="login-email">
             E-Mail
             <input
+              id="login-email"
+              name="email"
               type="email"
               required
               value={email}
@@ -52,9 +54,11 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
               placeholder="you@mail.com"
             />
           </label>
-          <label>
+          <label htmlFor="login-password">
             Passwort
             <input
+              id="login-password"
+              name="password"
               type="password"
               required
               value={password}
