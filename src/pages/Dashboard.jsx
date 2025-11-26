@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx - v3.0
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import StatsCard from "../components/StatsCard.jsx";
 import UploadZone from "../components/UploadZone.jsx";
 import GeneratorTool from "../components/GeneratorTool.jsx";
@@ -105,6 +105,47 @@ const TOOLS = {
   }
 };
 
+const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const PLATFORM_EMOJI = {
+  instagram: "📸",
+  tiktok: "🎵",
+  youtube: "▶️",
+  linkedin: "💼",
+  pinterest: "📌",
+  custom: "📝"
+};
+const STATUS_LABELS = {
+  scheduled: "Geplant",
+  draft: "Entwurf",
+  published: "Veröffentlicht",
+  completed: "Fertig"
+};
+const STATUS_COLORS = {
+  scheduled: "#6366f1",
+  draft: "#fbbf24",
+  published: "#10b981",
+  completed: "#14b8a6"
+};
+const PLATFORM_OPTIONS = [
+  { value: "instagram", label: "Instagram" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "youtube", label: "YouTube" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "custom", label: "Custom" }
+];
+
+function formatInputDate(date) {
+  return date.toLocaleDateString("en-CA");
+}
+
+function toDateKey(date) {
+  return date.toLocaleDateString("en-CA");
+}
+
+function formatReadableDate(date) {
+  return date.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
+}
+
 export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate, onNavigate }) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ prompts: 0, scripts: 0, uploads: 0 });
@@ -118,7 +159,39 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   
   // Calendar State
   const [calendarEntries, setCalendarEntries] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [activeDay, setActiveDay] = useState(new Date());
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState(null);
+  const [calendarMessage, setCalendarMessage] = useState(null);
+  const [calendarSaving, setCalendarSaving] = useState(false);
+  const [calendarForm, setCalendarForm] = useState(() => ({
+    title: "",
+    content: "",
+    platform: "instagram",
+    scheduledDate: formatInputDate(new Date()),
+    scheduledTime: "12:00",
+    color: "#6366f1"
+  }));
+  const entriesByDate = useMemo(() => {
+    const map = {};
+    for (const entry of calendarEntries) {
+      const key = toDateKey(new Date(entry.scheduledFor));
+      if (!map[key]) map[key] = [];
+      map[key].push(entry);
+    }
+    return map;
+  }, [calendarEntries]);
+  const upcomingEntries = useMemo(() => {
+    const now = new Date();
+    return [...calendarEntries]
+      .filter(entry => new Date(entry.scheduledFor) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+      .sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor))
+      .slice(0, 5);
+  }, [calendarEntries]);
   
   // Team State
   const [organization, setOrganization] = useState(null);
@@ -159,6 +232,24 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
     setError(null);
     setBatchResult(null);
   }, [currentPage]);
+  
+  useEffect(() => {
+    if (currentPage !== "calendar" || !token) return;
+    loadCalendarEntries(selectedDate);
+  }, [currentPage, selectedDate, token]);
+  
+  useEffect(() => {
+    setActiveDay(prev => {
+      if (
+        prev.getFullYear() === selectedDate.getFullYear() &&
+        prev.getMonth() === selectedDate.getMonth()
+      ) {
+        return prev;
+      }
+      return new Date(selectedDate);
+    });
+    setCalendarForm(form => ({ ...form, scheduledDate: formatInputDate(selectedDate) }));
+  }, [selectedDate]);
 
   // Generate Handler
   async function handleGenerate(formData) {
@@ -204,6 +295,99 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
       const profileRes = await getProfile(token);
       if (profileRes.success) onCreditsUpdate?.(profileRes.data.user.totalCredits);
     } else { setError(res.error?.message); }
+  }
+  
+  async function loadCalendarEntries(targetDate = selectedDate) {
+    if (!token) return;
+    setCalendarLoading(true);
+    setCalendarError(null);
+    try {
+      const ref = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const start = new Date(ref);
+      const end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59, 999);
+      const res = await getCalendarEntries(token, start.toISOString(), end.toISOString());
+      if (res.success) {
+        setCalendarEntries(res.data.entries);
+      } else {
+        setCalendarError(res.error?.message || "Kalender konnte nicht geladen werden");
+      }
+    } catch (err) {
+      setCalendarError(err.message || "Kalender konnte nicht geladen werden");
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
+  
+  function handleMonthChange(direction) {
+    setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + direction, 1));
+  }
+  
+  function handleDayClick(dayDate) {
+    setActiveDay(dayDate);
+    setCalendarForm(form => ({ ...form, scheduledDate: formatInputDate(dayDate) }));
+  }
+  
+  async function handleCreateCalendarEntry(e) {
+    e.preventDefault();
+    if (!calendarForm.title.trim() || !calendarForm.content.trim()) {
+      setCalendarError("Titel und Content sind erforderlich");
+      return;
+    }
+    setCalendarSaving(true);
+    setCalendarError(null);
+    setCalendarMessage(null);
+    try {
+      const payload = {
+        title: calendarForm.title.trim(),
+        content: calendarForm.content.trim(),
+        platform: calendarForm.platform,
+        scheduledFor: calendarForm.scheduledDate,
+        scheduledTime: calendarForm.scheduledTime,
+        color: calendarForm.color
+      };
+      const res = await createCalendarEntry(token, payload);
+      if (res.success) {
+        const entryDate = new Date(res.data.entry.scheduledFor);
+        setCalendarForm(form => ({
+          ...form,
+          title: "",
+          content: "",
+          scheduledDate: formatInputDate(entryDate)
+        }));
+        setActiveDay(entryDate);
+        const sameMonth = entryDate.getFullYear() === selectedDate.getFullYear() &&
+          entryDate.getMonth() === selectedDate.getMonth();
+        if (!sameMonth) {
+          setSelectedDate(new Date(entryDate.getFullYear(), entryDate.getMonth(), 1));
+        }
+        await loadCalendarEntries(entryDate);
+        setCalendarMessage("Eintrag gespeichert");
+        setTimeout(() => setCalendarMessage(null), 4000);
+      } else {
+        setCalendarError(res.error?.message || "Eintrag konnte nicht erstellt werden");
+      }
+    } catch (err) {
+      setCalendarError(err.message || "Eintrag konnte nicht erstellt werden");
+    } finally {
+      setCalendarSaving(false);
+    }
+  }
+  
+  async function handleDeleteEntry(entryId) {
+    const confirmed = window.confirm("Eintrag wirklich löschen?");
+    if (!confirmed) return;
+    try {
+      const res = await deleteCalendarEntry(token, entryId);
+      if (res.success) {
+        setCalendarEntries(prev => prev.filter(entry => entry._id !== entryId));
+        setCalendarMessage("Eintrag gelöscht");
+        setTimeout(() => setCalendarMessage(null), 3000);
+      } else {
+        setCalendarError(res.error?.message || "Löschen fehlgeschlagen");
+      }
+    } catch (err) {
+      setCalendarError(err.message || "Löschen fehlgeschlagen");
+    }
   }
 
   // ======== RENDER PAGES ========
@@ -251,7 +435,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
 
   // Batch Generator
   if (currentPage === "batch") {
-    return (
+  return (
       <div className="card">
         <div className="card-header">
           <div><h2 className="card-title">⚡ Batch Generator</h2><p className="card-subtitle">10 Prompts + 10 Hooks + 10 Captions auf einmal</p></div>
@@ -287,35 +471,292 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
                 <h4 style={{ marginBottom: "0.5rem", textTransform: "capitalize" }}>📌 {type === "prompts" ? "10 Prompts" : type === "hooks" ? "10 Hooks" : "10 Captions"}</h4>
                 <div className="generated-content">
                   <pre className="generated-text">{batchResult[type]?.join("\n\n") || "Keine Ergebnisse"}</pre>
-                </div>
-              </div>
-            ))}
           </div>
+        </div>
+            ))}
+        </div>
         )}
-      </div>
+        </div>
     );
   }
 
   // Calendar
   if (currentPage === "calendar") {
+    const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+    const startOffset = (monthStart.getDay() + 6) % 7; // Montag als Wochenstart
+    const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+    const todayKey = toDateKey(new Date());
+    const activeDayKey = toDateKey(activeDay);
+    const activeEntries = entriesByDate[activeDayKey] || [];
+    const monthLabel = selectedDate.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+    const scheduledCount = calendarEntries.filter(entry => entry.status === "scheduled").length;
+    const publishedCount = calendarEntries.filter(entry => entry.status === "published").length;
+    const draftCount = calendarEntries.filter(entry => entry.status === "draft").length;
+    
     return (
-      <div className="card">
-        <div className="card-header"><h2 className="card-title">📅 Content Kalender</h2></div>
-        <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
-          Plane deine Posts und behalte den Überblick über deinen Content.
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.5rem", marginBottom: "2rem" }}>
-          {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(d => (
-            <div key={d} style={{ textAlign: "center", fontWeight: 600, color: "var(--text-muted)", fontSize: "0.8rem" }}>{d}</div>
-          ))}
-          {Array.from({ length: 35 }, (_, i) => (
-            <div key={i} style={{
-              padding: "1rem", textAlign: "center", background: "var(--bg-tertiary)",
-              borderRadius: "var(--border-radius-sm)", cursor: "pointer", fontSize: "0.9rem"
-            }}>{i + 1 <= 31 ? i + 1 : ""}</div>
-          ))}
+      <div style={{ display: "grid", gap: "1.5rem", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", alignItems: "start" }}>
+        <div className="card">
+          <div className="card-header" style={{ alignItems: "center" }}>
+            <div>
+              <h2 className="card-title">📅 Content Kalender</h2>
+              <p className="card-subtitle">Plane deine Posts und behalte Deadlines im Blick</p>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button type="button" className="btn btn-secondary" onClick={() => handleMonthChange(-1)} aria-label="Vorheriger Monat">←</button>
+              <button type="button" className="btn btn-secondary" onClick={() => handleMonthChange(1)} aria-label="Nächster Monat">→</button>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+            <div style={{ fontWeight: 600, fontSize: "1.125rem", textTransform: "capitalize" }}>{monthLabel}</div>
+            {calendarLoading && <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Aktualisiere…</span>}
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+            {[
+              { label: "Geplant", value: scheduledCount, color: STATUS_COLORS.scheduled },
+              { label: "Veröffentlicht", value: publishedCount, color: STATUS_COLORS.published },
+              { label: "Entwürfe", value: draftCount, color: STATUS_COLORS.draft }
+            ].map(stat => (
+              <div key={stat.label} style={{
+                padding: "0.6rem 0.85rem",
+                borderRadius: "var(--border-radius-sm)",
+                background: "var(--bg-tertiary)",
+                border: `1px solid ${stat.color}33`,
+                minWidth: "110px"
+              }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{stat.label}</span>
+                <div style={{ fontSize: "1.2rem", fontWeight: 600 }}>{stat.value}</div>
+              </div>
+            ))}
+          </div>
+          {calendarError && (
+            <div className="status-message error" style={{ marginBottom: "1rem" }}>{calendarError}</div>
+          )}
+          {calendarMessage && (
+            <div className="status-message success" style={{ marginBottom: "1rem" }}>{calendarMessage}</div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            {WEEKDAYS.map(day => (
+              <div key={day} style={{ textAlign: "center", fontWeight: 600, color: "var(--text-muted)", fontSize: "0.85rem" }}>{day}</div>
+            ))}
+            {Array.from({ length: totalCells }, (_, index) => {
+              const dayNumber = index - startOffset + 1;
+              if (dayNumber < 1 || dayNumber > daysInMonth) {
+                return <div key={`empty-${index}`} style={{ padding: "1rem" }} />;
+              }
+              const dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), dayNumber);
+              const dateKey = toDateKey(dayDate);
+              const dayEntries = entriesByDate[dateKey] || [];
+              const isToday = dateKey === todayKey;
+              const isActive = dateKey === activeDayKey;
+              
+              return (
+                <div
+                  key={dateKey}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleDayClick(dayDate)}
+                  onKeyDown={e => { if (e.key === "Enter") handleDayClick(dayDate); }}
+                  style={{
+                    padding: "0.85rem",
+                    borderRadius: "var(--border-radius-sm)",
+                    background: isActive ? "rgba(99,102,241,0.15)" : "var(--bg-tertiary)",
+                    border: isToday ? "1px solid var(--accent)" : "1px solid transparent",
+                    cursor: "pointer",
+                    minHeight: "95px",
+                    display: "flex",
+                    flexDirection: "column",
+                    outline: "none"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 600 }}>
+                    <span>{dayNumber}</span>
+                    {dayEntries.length > 0 && (
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{dayEntries.length}</span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: "0.35rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {dayEntries.slice(0, 2).map(entry => (
+                      <span
+                        key={entry._id}
+                        style={{
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "999px",
+                          background: `${(STATUS_COLORS[entry.status] || "#94a3b8")}22`,
+                          color: "var(--text-secondary)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                      >
+                        {PLATFORM_EMOJI[entry.platform] || PLATFORM_EMOJI.custom} {entry.title}
+                      </span>
+                    ))}
+                    {dayEntries.length > 2 && (
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>+{dayEntries.length - 2} mehr</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <div>
+                <h3 style={{ marginBottom: "0.25rem", fontSize: "1rem" }}>{formatReadableDate(activeDay)}</h3>
+                <p className="card-subtitle" style={{ margin: 0 }}>{activeEntries.length ? `${activeEntries.length} Posts geplant` : "Noch keine Posts geplant"}</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const today = new Date();
+                  setSelectedDate(new Date(today.getFullYear(), today.getMonth(), 1));
+                  handleDayClick(today);
+                }}
+              >
+                Heute
+              </button>
+            </div>
+            {calendarLoading ? (
+              <p style={{ color: "var(--text-muted)" }}>Lade Einträge…</p>
+            ) : activeEntries.length === 0 ? (
+              <div style={{ padding: "1rem", background: "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)" }}>
+                <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-muted)" }}>Keine Einträge für diesen Tag. Plane rechts einen neuen Post.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {activeEntries.map(entry => (
+                  <div key={entry._id} style={{
+                    padding: "1rem",
+                    background: "var(--bg-tertiary)",
+                    borderRadius: "var(--border-radius-sm)",
+                    borderLeft: `4px solid ${STATUS_COLORS[entry.status] || "#94a3b8"}`
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.35rem" }}>
+                      <strong>{entry.title}</strong>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{entry.scheduledTime || "12:00"}</span>
+                    </div>
+                    <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>{entry.content}</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem" }}>
+                      <span style={{ color: STATUS_COLORS[entry.status] || "var(--text-muted)" }}>
+                        {STATUS_LABELS[entry.status] || "Geplant"} · {PLATFORM_OPTIONS.find(p => p.value === entry.platform)?.label || "Custom"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEntry(entry._id)}
+                        style={{ background: "transparent", border: "none", color: "var(--danger, #f87171)", fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <p style={{ color: "var(--text-muted)", textAlign: "center" }}>Kalender-Vollversion kommt bald!</p>
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">✍️ Neuer Kalender-Eintrag</h2>
+            <p className="card-subtitle">Verbinde deine AI-Ergebnisse direkt mit Publishing-Slots</p>
+          </div>
+          <form onSubmit={handleCreateCalendarEntry} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div className="form-group">
+              <label className="form-label">Titel *</label>
+              <input
+                className="form-input"
+                placeholder="Hook, Caption oder Videotitel"
+                value={calendarForm.title}
+                onChange={e => setCalendarForm(form => ({ ...form, title: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Content / Caption *</label>
+              <textarea
+                className="form-textarea"
+                rows={4}
+                placeholder="Kurze Content-Zusammenfassung oder finale Caption"
+                value={calendarForm.content}
+                onChange={e => setCalendarForm(form => ({ ...form, content: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Datum *</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={calendarForm.scheduledDate}
+                  onChange={e => setCalendarForm(form => ({ ...form, scheduledDate: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Uhrzeit</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={calendarForm.scheduledTime}
+                  onChange={e => setCalendarForm(form => ({ ...form, scheduledTime: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Plattform</label>
+                <select
+                  className="form-select"
+                  value={calendarForm.platform}
+                  onChange={e => setCalendarForm(form => ({ ...form, platform: e.target.value }))}
+                >
+                  {PLATFORM_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Farbe</label>
+                <input
+                  type="color"
+                  className="form-input"
+                  style={{ padding: 0, height: "42px" }}
+                  value={calendarForm.color}
+                  onChange={e => setCalendarForm(form => ({ ...form, color: e.target.value }))}
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={calendarSaving}>
+              {calendarSaving ? "Speichere..." : "Eintrag planen"}
+            </button>
+          </form>
+          <div style={{ marginTop: "2rem" }}>
+            <h3 style={{ marginBottom: "0.5rem" }}>🚀 Nächste Posts</h3>
+            {upcomingEntries.length === 0 ? (
+              <p style={{ color: "var(--text-muted)" }}>Noch keine anstehenden Posts für diesen Monat.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {upcomingEntries.map(entry => {
+                  const date = new Date(entry.scheduledFor);
+                  return (
+                    <div key={entry._id} style={{ padding: "0.85rem", background: "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+                        <strong>{entry.title}</strong>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{date.toLocaleDateString("de-DE")} · {entry.scheduledTime || "12:00"}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                        {PLATFORM_EMOJI[entry.platform] || PLATFORM_EMOJI.custom} {STATUS_LABELS[entry.status] || "Geplant"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -343,8 +784,8 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
                   else alert(res.error?.message);
                 }}>Einladen</button>
               </div>
-            </div>
-          </div>
+                  </div>
+                </div>
         ) : (
           <div>
             <p style={{ marginBottom: "1rem" }}>Erstelle ein Team, um mit anderen zusammenzuarbeiten.</p>
@@ -356,7 +797,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
                 else alert(res.error?.message);
               }}>Team erstellen</button>
             </div>
-          </div>
+                </div>
         )}
       </div>
     );
@@ -401,7 +842,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           const res = await updateContentStyle(token, styleForm);
           if (res.success) alert("Stil gespeichert!"); else alert(res.error?.message);
         }}>💾 Speichern</button>
-      </div>
+          </div>
     );
   }
 
@@ -422,9 +863,9 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
               </div>
             ))}
           </div>
-        )}
-      </div>
-    );
+      )}
+    </div>
+  );
   }
 
   // Settings
