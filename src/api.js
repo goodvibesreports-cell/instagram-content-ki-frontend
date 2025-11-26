@@ -2,13 +2,197 @@ import axios from "axios";
 
 export const BACKEND_URL = import.meta.env.VITE_API_URL || "https://instagram-content-ki-backend.onrender.com";
 
+const SESSION_STORAGE_KEY = "ic-ki-auth-session";
+const storage = typeof window !== "undefined" ? window.localStorage : null;
+
+function loadStoredSession() {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(SESSION_STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {
+    storage.removeItem(SESSION_STORAGE_KEY);
+  }
+
+  const legacy = storage.getItem("authToken");
+  if (legacy) {
+    const fallback = { accessToken: legacy, refreshToken: null };
+    storage.removeItem("authToken");
+    storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+  return null;
+}
+
+let cachedSession = loadStoredSession();
+
+function persistRawSession(session) {
+  cachedSession = session;
+  if (!storage) {
+    return session;
+  }
+  if (session) {
+    storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  } else {
+    storage.removeItem(SESSION_STORAGE_KEY);
+  }
+  return session;
+}
+
+function normalizeAuthPayload(payload, fallbackUser = null) {
+  if (!payload) return null;
+  const tokens = payload.tokens || {};
+  const accessToken = tokens.accessToken || payload.accessToken || cachedSession?.accessToken || null;
+  if (!accessToken) {
+    return null;
+  }
+  const refreshToken = tokens.refreshToken || payload.refreshToken || cachedSession?.refreshToken || null;
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn: tokens.expiresIn ?? payload.expiresIn ?? cachedSession?.expiresIn ?? null,
+    refreshExpiresAt: tokens.refreshExpiresAt || payload.refreshExpiresAt || cachedSession?.refreshExpiresAt || null,
+    issuedAt: new Date().toISOString(),
+    user: payload.user || fallbackUser || cachedSession?.user || null,
+    session: payload.session || cachedSession?.session || null
+  };
+}
+
+export function persistAuthSession(payload) {
+  const normalized = normalizeAuthPayload(payload, payload?.user || payload?.data?.user);
+  if (!normalized) return null;
+  return persistRawSession(normalized);
+}
+
+export function updateStoredSession(patch) {
+  if (!cachedSession) return null;
+  const next = {
+    ...cachedSession,
+    ...patch,
+    ...(patch.user
+      ? { user: { ...(cachedSession.user || {}), ...patch.user } }
+      : {}),
+    ...(patch.session
+      ? { session: { ...(cachedSession.session || {}), ...patch.session } }
+      : {})
+  };
+  return persistRawSession(next);
+}
+
+export function clearStoredSession() {
+  persistRawSession(null);
+}
+
+export function getStoredSession() {
+  return cachedSession;
+}
+
+function getEffectiveToken(explicitToken) {
+  return explicitToken || cachedSession?.accessToken || null;
+}
+
+function getEffectiveRefreshToken(explicitToken) {
+  return explicitToken || cachedSession?.refreshToken || null;
+}
+
 export const api = axios.create({
   baseURL: BACKEND_URL,
   headers: { "Content-Type": "application/json" }
 });
 
+api.interceptors.request.use((config) => {
+  const token = getEffectiveToken();
+  if (token) {
+    config.headers = config.headers || {};
+    if (!config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
+let isRefreshing = false;
+let refreshQueue = [];
+
+function enqueueRefreshRequest() {
+  return new Promise((resolve, reject) => {
+    refreshQueue.push({ resolve, reject });
+  });
+}
+
+function resolveRefreshQueue(error, token) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  refreshQueue = [];
+}
+
+async function refreshAccessToken() {
+  const refreshToken = getEffectiveRefreshToken();
+  if (!refreshToken) {
+    throw new Error("Kein Refresh Token vorhanden");
+  }
+  const response = await axios.post(`${BACKEND_URL}/auth/refresh`, { refreshToken });
+  const payload = response.data?.data;
+  const session = persistAuthSession(payload);
+  if (!session?.accessToken) {
+    throw new Error("Session konnte nicht erneuert werden");
+  }
+  return session.accessToken;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error.response?.status;
+    const originalRequest = error.config;
+
+    if (
+      status !== 401 ||
+      originalRequest?.__isRetry ||
+      !getEffectiveRefreshToken()
+    ) {
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      try {
+        const token = await enqueueRefreshRequest();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        originalRequest.__isRetry = true;
+        return api(originalRequest);
+      } catch (queueError) {
+        return Promise.reject(queueError);
+      }
+    }
+
+    isRefreshing = true;
+    originalRequest.__isRetry = true;
+
+    try {
+      const newToken = await refreshAccessToken();
+      resolveRefreshQueue(null, newToken);
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      return api(originalRequest);
+    } catch (refreshError) {
+      resolveRefreshQueue(refreshError);
+      clearStoredSession();
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
+
 function authHeader(token) {
-  return { headers: { Authorization: `Bearer ${token}` } };
+  const effectiveToken = getEffectiveToken(token);
+  return effectiveToken ? { headers: { Authorization: `Bearer ${effectiveToken}` } } : {};
 }
 
 function normalizeError(err) {
@@ -74,6 +258,14 @@ export async function updatePlatformMode(token, platform) {
   return request(api.put("/auth/platform-mode", { platform }, authHeader(token)));
 }
 
+export async function logoutSession(refreshToken, fromAllDevices = false) {
+  const effectiveRefresh = getEffectiveRefreshToken(refreshToken);
+  return request(api.post("/auth/logout", {
+    refreshToken: effectiveRefresh,
+    fromAllDevices: fromAllDevices || !effectiveRefresh
+  }));
+}
+
 // ==============================
 // Creator DNA
 // ==============================
@@ -117,9 +309,20 @@ export async function uploadPosts(file, token = null) {
   try {
     const formData = new FormData();
     formData.append("file", file);
-    const config = { headers: { "Content-Type": "multipart/form-data", ...(token && { Authorization: `Bearer ${token}` }) } };
+    const authToken = getEffectiveToken(token);
+    const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
     return (await api.post("/upload", formData, config)).data;
   } catch (err) { return handleError(err); }
+}
+
+export async function getUploadDatasets(token) {
+  try { return (await api.get("/upload/datasets", authHeader(token))).data; }
+  catch (err) { return handleError(err); }
+}
+
+export async function getUploadDataset(token, id) {
+  try { return (await api.get(`/upload/datasets/${id}`, authHeader(token))).data; }
+  catch (err) { return handleError(err); }
 }
 
 export async function getPosts(token = null, options = {}) {

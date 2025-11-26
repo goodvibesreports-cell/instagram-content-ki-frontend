@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import StatsCard from "../components/StatsCard.jsx";
 import UploadZone from "../components/UploadZone.jsx";
+import UploadAnalyzerPro from "../components/UploadAnalyzerPro.jsx";
 import GeneratorTool from "../components/GeneratorTool.jsx";
+import ToolDescription from "../components/ToolDescription.jsx";
+import { toolDescriptions } from "../data/toolDescriptions.js";
 import {
   getProfile,
   getHistory,
@@ -149,6 +152,7 @@ function formatReadableDate(date) {
 export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate, onNavigate }) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ prompts: 0, scripts: 0, uploads: 0 });
+  const [latestUpload, setLatestUpload] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -403,9 +407,19 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           <StatsCard icon="⚡" iconColor="orange" value={profile?.totalCredits || 0} label="Credits" />
         </div>
         <div className="card" style={{ marginBottom: "2rem" }}>
-          <div className="card-header"><h2 className="card-title">📤 Posts hochladen</h2></div>
-          <UploadZone token={token} onUploadSuccess={() => setStats(p => ({ ...p, uploads: p.uploads + 1 }))} />
+          <div className="card-header">
+            <h2 className="card-title">📤 Posts hochladen</h2>
+          </div>
+          <UploadZone
+            token={token}
+            onUploadSuccess={(payload) => {
+              setStats(p => ({ ...p, uploads: p.uploads + 1 }));
+              setLatestUpload(payload);
+            }}
+          />
         </div>
+        <UploadAnalyzerPro token={token} lastUpload={latestUpload} />
+        <ToolDescription {...toolDescriptions.upload} />
         <h2 style={{ marginBottom: "1rem" }}>🚀 Schnellzugriff</h2>
         <div className="tools-grid">
           {[
@@ -429,6 +443,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
             </div>
           ))}
         </div>
+        <ToolDescription {...toolDescriptions.dashboard} />
       </div>
     );
   }
@@ -436,6 +451,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   // Batch Generator
   if (currentPage === "batch") {
   return (
+    <>
       <div className="card">
         <div className="card-header">
           <div><h2 className="card-title">⚡ Batch Generator</h2><p className="card-subtitle">10 Prompts + 10 Hooks + 10 Captions auf einmal</p></div>
@@ -477,6 +493,8 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
         </div>
         )}
         </div>
+        <ToolDescription {...toolDescriptions.batchGenerator} />
+    </>
     );
   }
 
@@ -764,6 +782,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   // Team
   if (currentPage === "team") {
     return (
+      <>
       <div className="card">
         <div className="card-header"><h2 className="card-title">👥 Team Management</h2></div>
         {organization ? (
@@ -800,12 +819,15 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
                 </div>
         )}
       </div>
+      <ToolDescription {...toolDescriptions.team} />
+      </>
     );
   }
 
   // Style (Persönlicher Assistent)
   if (currentPage === "style") {
     return (
+      <>
       <div className="card">
         <div className="card-header"><h2 className="card-title">🎨 KI-Assistent Konfiguration</h2><p className="card-subtitle">Trainiere die KI auf deinen Stil</p></div>
         <div className="form-row">
@@ -843,12 +865,15 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           if (res.success) alert("Stil gespeichert!"); else alert(res.error?.message);
         }}>💾 Speichern</button>
           </div>
+      <ToolDescription {...toolDescriptions.assistant} />
+      </>
     );
   }
 
   // History
   if (currentPage === "history") {
     return (
+      <>
       <div className="card">
         <div className="card-header"><h2 className="card-title">📜 Verlauf</h2></div>
         {history.length === 0 ? <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "2rem" }}>Keine Generierungen vorhanden.</p> : (
@@ -865,12 +890,15 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           </div>
       )}
     </div>
+    <ToolDescription {...toolDescriptions.history} />
+  </>
   );
   }
 
   // Settings
   if (currentPage === "settings") {
     return (
+      <>
       <div className="card">
         <div className="card-header"><h2 className="card-title">⚙️ Einstellungen</h2></div>
         <div className="form-group">
@@ -881,12 +909,15 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
         </div>
         <button className="btn btn-primary">💾 Speichern</button>
       </div>
+      <ToolDescription {...toolDescriptions.settings} />
+      </>
     );
   }
 
   // Credits
   if (currentPage === "credits") {
     return (
+      <>
       <div className="card">
         <div className="card-header"><h2 className="card-title">💰 Credits kaufen</h2></div>
         <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>Stripe-Integration kommt bald!</p>
@@ -902,13 +933,15 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           ))}
         </div>
       </div>
+      <ToolDescription {...toolDescriptions.credits} />
+      </>
     );
   }
 
   // Tool Pages
   const currentTool = TOOLS[currentPage];
   if (currentTool) {
-    return <GeneratorTool {...currentTool} onGenerate={handleGenerate} isLoading={isLoading} result={result} error={error} />;
+    return <GeneratorTool {...currentTool} descriptorKey={currentPage} onGenerate={handleGenerate} isLoading={isLoading} result={result} error={error} />;
   }
 
   return <div>Seite nicht gefunden</div>;

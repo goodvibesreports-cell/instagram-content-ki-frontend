@@ -23,15 +23,31 @@ export default function UploadZone({ token, onUploadSuccess }) {
 
     try {
       const result = await uploadPosts(file, token);
-      
       if (result.success) {
-        setUploadResult(result.data);
-        onUploadSuccess?.(result.data);
-        
+        const links = result.links || result.data?.links || [];
+        const posts = result.posts || result.data?.posts || [];
+        const count =
+          typeof result.count === "number"
+            ? result.count
+            : links.length || posts.length || result.data?.count || 0;
+        const payload = {
+          count,
+          message: result.message || "Upload erfolgreich",
+          links,
+          posts,
+          datasetId: result.datasetId,
+          dataset: result.dataset,
+          fileName: result.fileName || result.dataset?.sourceFilename || file.name,
+          fileSize: result.fileSize || result.dataset?.fileSize || file.size,
+        };
+
+        setUploadResult(payload);
+        onUploadSuccess?.(payload);
+
         // Reset nach 3 Sekunden
         setTimeout(() => setUploadResult(null), 3000);
       } else {
-        setError(result.error?.message || "Upload fehlgeschlagen");
+        setError(result.error?.message || result.message || "Upload fehlgeschlagen");
       }
     } catch (err) {
       setError(err.message);
@@ -93,7 +109,10 @@ export default function UploadZone({ token, onUploadSuccess }) {
       ) : uploadResult ? (
         <div className="upload-success">
           <span className="upload-success-icon">✓</span>
-          <span>{uploadResult.count} Posts hochgeladen!</span>
+          <span>
+            {uploadResult.message || "Upload erfolgreich"} · {uploadResult.count}{" "}
+            {uploadResult.count === 1 ? "Post" : "Posts"}
+          </span>
         </div>
       ) : (
         <>

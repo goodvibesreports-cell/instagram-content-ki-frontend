@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCreatorProfile, saveCreatorProfile } from "../api";
+import ToolDescription from "../components/ToolDescription.jsx";
+import { toolDescriptions } from "../data/toolDescriptions.js";
 
 const toneOptions = ["seriös", "frech", "motiviert", "edgy", "ruhig", "laut"];
 
@@ -78,6 +80,7 @@ export default function CreatorDNAPage({ token, onComplete, profile }) {
   }
 
   return (
+    <>
     <div className="card">
       <div className="card-header">
         <div>
@@ -124,6 +127,8 @@ export default function CreatorDNAPage({ token, onComplete, profile }) {
         {status && <p className={`status-message ${status.type === "error" ? "error" : "success"}`}>{status.message}</p>}
       </form>
     </div>
+    <ToolDescription {...toolDescriptions.creatorDNAWizard} />
+    </>
   );
 }
 

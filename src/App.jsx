@@ -6,7 +6,14 @@ import RegisterPage from "./pages/Register.jsx";
 import VerifyPage from "./pages/Verify.jsx";
 import CreatorDNAPage from "./pages/CreatorDNA.jsx";
 import DashboardPage from "./pages/Dashboard.jsx";
-import { fetchMe } from "./api";
+import {
+  fetchMe,
+  logoutSession,
+  persistAuthSession,
+  getStoredSession,
+  updateStoredSession,
+  clearStoredSession
+} from "./api";
 
 function ProtectedRoute({ token, user, requireProfile = true, children }) {
   if (!token) return <Navigate to="/login" replace />;
@@ -17,12 +24,13 @@ function ProtectedRoute({ token, user, requireProfile = true, children }) {
 }
 
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem("authToken"));
+  const [session, setSession] = useState(() => getStoredSession());
   const [user, setUser] = useState(null);
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const token = session?.accessToken || null;
 
   useEffect(() => {
     async function load() {
@@ -34,10 +42,15 @@ export default function App() {
         const res = await fetchMe(token);
         setUser(res.data);
         setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
+        const updated = updateStoredSession({ user: res.data });
+        if (updated) {
+          setSession(updated);
+        }
       } catch (err) {
         console.warn(err);
-        localStorage.removeItem("authToken");
-        setToken(null);
+        clearStoredSession();
+        setSession(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -47,41 +60,50 @@ export default function App() {
 
   const handleLogin = (authPayload) => {
     const payload = authPayload?.data ?? authPayload;
-    const jwt = typeof payload === "string" ? payload : payload?.token;
-
-    if (!jwt) {
-      console.warn("Login ohne Token – Antwort prüfen", authPayload);
+    const normalized = persistAuthSession(payload);
+    if (!normalized?.accessToken) {
+      console.warn("Login ohne gültige Tokens – Antwort prüfen", authPayload);
       return;
     }
 
-    setToken(jwt);
-    localStorage.setItem("authToken", jwt);
+    setSession(normalized);
     setCurrentPage("dashboard");
 
-    if (payload?.user) {
-      setUser(payload.user);
-      setCredits(payload.user.totalCredits ?? payload.user.credits ?? 0);
+    if (normalized.user) {
+      setUser(normalized.user);
+      setCredits(normalized.user.totalCredits ?? normalized.user.credits ?? 0);
     } else {
-      // Fallback: Profil laden, falls Backend kein User-Objekt zurückgibt
-      fetchMe(jwt)
+      fetchMe(normalized.accessToken)
         .then((res) => {
           setUser(res.data);
           setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
+          const updated = updateStoredSession({ user: res.data });
+          if (updated) {
+            setSession(updated);
+          }
         })
         .catch((err) => console.warn("Fetch after login fehlgeschlagen", err));
     }
   };
 
   const handleLogout = () => {
-    setToken(null);
+    const refreshToken = session?.refreshToken || null;
+    logoutSession(refreshToken).catch(() => {});
+    clearStoredSession();
+    setSession(null);
     setUser(null);
     setCredits(0);
     setCurrentPage("dashboard");
-    localStorage.removeItem("authToken");
   };
 
   const handleProfileComplete = (profile) => {
     setUser((prev) => ({ ...prev, creatorProfile: profile }));
+    const updated = updateStoredSession({
+      user: { creatorProfile: profile }
+    });
+    if (updated) {
+      setSession(updated);
+    }
     setCurrentPage("dashboard");
   };
 

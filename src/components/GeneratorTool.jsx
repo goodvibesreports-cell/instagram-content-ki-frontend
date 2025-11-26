@@ -1,7 +1,19 @@
 // src/components/GeneratorTool.jsx
 import React, { useState } from "react";
+import ToolDescription from "./ToolDescription.jsx";
+import { toolDescriptions } from "../data/toolDescriptions.js";
 
-export default function GeneratorTool({ 
+const TOOL_DESCRIPTOR_MAP = {
+  prompts: "promptGenerator",
+  scripts: "scriptGenerator",
+  hooks: "hookGenerator",
+  captions: "captionGenerator",
+  titles: "titleGenerator",
+  trends: "trendFinder",
+  virality: "viralityCheck"
+};
+
+export default function GeneratorTool({
   title,
   description, 
   icon,
@@ -10,10 +22,12 @@ export default function GeneratorTool({
   onGenerate,
   isLoading,
   result,
-  error
+  error,
+  descriptorKey
 }) {
   const [formData, setFormData] = useState({});
   const [copied, setCopied] = useState(false);
+  const descriptor = descriptorKey ? toolDescriptions[TOOL_DESCRIPTOR_MAP[descriptorKey]] : null;
 
   function handleChange(fieldId, value) {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
@@ -37,6 +51,7 @@ export default function GeneratorTool({
   }
 
   return (
+    <>
     <div className="card animate-fade-in">
       <div className="card-header">
         <div>
@@ -140,6 +155,8 @@ export default function GeneratorTool({
         </div>
       )}
     </div>
+    {descriptor && <ToolDescription {...descriptor} />}
+    </>
   );
 }
 
