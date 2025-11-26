@@ -15,7 +15,6 @@ const pageTitles = {
   virality: "Virality Analyse",
   team: "Team Management",
   style: "KI-Assistent",
-  apikeys: "API Keys",
   settings: "Einstellungen",
   credits: "Credits kaufen"
 };

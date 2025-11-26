@@ -1,151 +1,156 @@
-// src/App.jsx - Instagram Content KI v2.0
 import React, { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import LoginPage from "./pages/Login.jsx";
 import RegisterPage from "./pages/Register.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
-import { fetchMe, getProfile } from "./api";
+import VerifyPage from "./pages/Verify.jsx";
+import CreatorDNAPage from "./pages/CreatorDNA.jsx";
+import DashboardPage from "./pages/Dashboard.jsx";
+import { fetchMe } from "./api";
 
-function ProtectedRoute({ token, children }) {
-  if (!token) {
-    return <Navigate to="/login" replace />;
+function ProtectedRoute({ token, user, requireProfile = true, children }) {
+  if (!token) return <Navigate to="/login" replace />;
+  if (requireProfile && !user?.creatorProfile) {
+    return <Navigate to="/dna" replace />;
   }
   return children;
 }
 
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem("authToken") || null);
+  const [token, setToken] = useState(() => localStorage.getItem("authToken"));
   const [user, setUser] = useState(null);
   const [credits, setCredits] = useState(0);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
   const [currentPage, setCurrentPage] = useState("dashboard");
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved) return saved;
-    if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
-    return "light";
-  });
 
-  // Auth Check
   useEffect(() => {
-    async function init() {
+    async function load() {
       if (!token) {
-        setCheckingAuth(false);
+        setLoading(false);
         return;
       }
       try {
-        const me = await fetchMe(token);
-        if (me.success && me.data) {
-          setUser(me.data);
-          
-          // Get full profile with credits
-          const profile = await getProfile(token);
-          if (profile.success) {
-            setCredits(profile.data.user.credits + profile.data.user.bonusCredits);
-          }
-        } else {
-          localStorage.removeItem("authToken");
-          setToken(null);
-        }
+        const res = await fetchMe(token);
+        setUser(res.data);
+        setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
       } catch (err) {
-        console.error("Auth check error:", err);
+        console.warn(err);
         localStorage.removeItem("authToken");
         setToken(null);
       } finally {
-        setCheckingAuth(false);
+        setLoading(false);
       }
     }
-    init();
+    load();
   }, [token]);
 
-  // Listen for navigation events
-  useEffect(() => {
-    function handleNavigate(e) {
-      setCurrentPage(e.detail);
+  const handleLogin = (authPayload) => {
+    const payload = authPayload?.data ?? authPayload;
+    const jwt = typeof payload === "string" ? payload : payload?.token;
+
+    if (!jwt) {
+      console.warn("Login ohne Token – Antwort prüfen", authPayload);
+      return;
     }
-    window.addEventListener("navigate", handleNavigate);
-    return () => window.removeEventListener("navigate", handleNavigate);
-  }, []);
 
-  function handleLogin(newToken) {
-    setToken(newToken);
-    localStorage.setItem("authToken", newToken);
-  }
+    setToken(jwt);
+    localStorage.setItem("authToken", jwt);
+    setCurrentPage("dashboard");
 
-  function handleLogout() {
+    if (payload?.user) {
+      setUser(payload.user);
+      setCredits(payload.user.totalCredits ?? payload.user.credits ?? 0);
+    } else {
+      // Fallback: Profil laden, falls Backend kein User-Objekt zurückgibt
+      fetchMe(jwt)
+        .then((res) => {
+          setUser(res.data);
+          setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
+        })
+        .catch((err) => console.warn("Fetch after login fehlgeschlagen", err));
+    }
+  };
+
+  const handleLogout = () => {
     setToken(null);
     setUser(null);
     setCredits(0);
+    setCurrentPage("dashboard");
     localStorage.removeItem("authToken");
-  }
+  };
 
-  function toggleTheme() {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  }
+  const handleProfileComplete = (profile) => {
+    setUser((prev) => ({ ...prev, creatorProfile: profile }));
+    setCurrentPage("dashboard");
+  };
 
   function handleNavigate(page) {
+    if (!page) return;
     setCurrentPage(page);
   }
 
-  function handleCreditsUpdate(newCredits) {
-    setCredits(newCredits);
-  }
-
-  if (checkingAuth) {
+  if (loading) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
-        <p style={{ marginTop: "1rem", color: "var(--text-muted)" }}>
-          Starte Dashboard…
-        </p>
+        <p>Starte Creator OS…</p>
       </div>
     );
   }
 
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage onLogin={handleLogin} isAuthenticated={!!token} />} />
+      <Route path="/register" element={<RegisterPage onLogin={handleLogin} isAuthenticated={!!token} />} />
+      <Route path="/verify" element={<VerifyPage />} />
       <Route
-        path="/login"
-        element={
-          <LoginPage onLogin={handleLogin} isAuthenticated={!!token} />
-        }
-      />
-      <Route
-        path="/register"
-        element={<RegisterPage isAuthenticated={!!token} />}
-      />
-
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute token={token}>
+        path="/dna"
+        element={(
+          <ProtectedRoute token={token} user={user} requireProfile={false}>
             <Layout
               theme={theme}
-              onToggleTheme={toggleTheme}
+              onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+              onLogout={handleLogout}
+              userEmail={user?.email}
+              credits={credits}
+              onNavigate={handleNavigate}
+              currentPage="dna"
+            >
+              <CreatorDNAPage
+                token={token}
+                onComplete={handleProfileComplete}
+                profile={user?.creatorProfile}
+              />
+            </Layout>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/dashboard"
+        element={(
+          <ProtectedRoute token={token} user={user}>
+            <Layout
+              theme={theme}
+              onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
               onLogout={handleLogout}
               userEmail={user?.email}
               credits={credits}
               onNavigate={handleNavigate}
               currentPage={currentPage}
             >
-              <Dashboard 
-                token={token} 
+              <DashboardPage
+                token={token}
                 userEmail={user?.email}
                 currentPage={currentPage}
-                onCreditsUpdate={handleCreditsUpdate}
+                onNavigate={handleNavigate}
+                onCreditsUpdate={setCredits}
               />
             </Layout>
           </ProtectedRoute>
-        }
+        )}
       />
-
-      <Route
-        path="*"
-        element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
-      />
+      <Route path="*" element={<Navigate to={token ? (user?.creatorProfile ? "/dashboard" : "/dna") : "/login"} replace />} />
     </Routes>
   );
 }

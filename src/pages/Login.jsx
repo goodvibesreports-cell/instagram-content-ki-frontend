@@ -7,7 +7,8 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
+  const [status, setStatus] = useState({ type: null, message: "" });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -17,23 +18,23 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setMsg("");
+    if (isLoading) return;
+    setStatus({ type: null, message: "" });
+    setIsLoading(true);
+
     try {
-      const data = await loginUser(email, password);
-      if (data.token) {
-        onLogin(data.token);
-        setMsg("Login erfolgreich, weiterleiten...");
-        setTimeout(() => nav("/dashboard"), 500);
-      } else {
-        const errorMsg =
-          (typeof data.error === "string"
-            ? data.error
-            : data.error?.message) || "Login fehlgeschlagen";
-        setMsg(errorMsg);
-      }
+      const response = await loginUser(email, password);
+      onLogin?.(response);
+      setStatus({ type: "success", message: response.message || "Login erfolgreich, weiterleiten…" });
+      setTimeout(() => nav("/dashboard"), 400);
     } catch (err) {
-      console.error(err);
-      setMsg("Fehler beim Login");
+      const detail = Array.isArray(err.details) && err.details.length ? err.details[0].message : null;
+      setStatus({
+        type: "error",
+        message: detail || err.message || "Login fehlgeschlagen"
+      });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -45,7 +46,7 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
           Melde dich an, um dein Instagram Content KI Dashboard zu nutzen.
         </p>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <label htmlFor="login-email">
             E-Mail
             <input
@@ -57,6 +58,7 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@mail.com"
+              inputMode="email"
             />
           </label>
           <label htmlFor="login-password">
@@ -73,11 +75,15 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
             />
           </label>
 
-          <button type="submit" className="btn btn-primary auth-submit">
-            Einloggen
+          <button type="submit" className="btn btn-primary auth-submit" disabled={isLoading}>
+            {isLoading ? "Wird geprüft…" : "Einloggen"}
           </button>
 
-          {msg && <p className="status-message">{msg}</p>}
+          {status.message && (
+            <p className={`status-message ${status.type === "error" ? "error" : "success"}`}>
+              {status.message}
+            </p>
+          )}
         </form>
 
         <p className="auth-switch">

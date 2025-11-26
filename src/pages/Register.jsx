@@ -3,11 +3,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../api";
 
-export default function RegisterPage({ isAuthenticated }) {
+export default function RegisterPage({ isAuthenticated, onLogin }) {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
+  const [status, setStatus] = useState({ type: null, message: "" });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -17,26 +18,31 @@ export default function RegisterPage({ isAuthenticated }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setMsg("");
+    if (isLoading) return;
+
+    setStatus({ type: null, message: "" });
+    setIsLoading(true);
+
     try {
-      const data = await registerUser(email, password);
-      if (data.error) {
-        const errorMsg =
-          (typeof data.error === "string"
-            ? data.error
-            : data.error?.message) || "Registrierung fehlgeschlagen";
-        setMsg(errorMsg);
+      const response = await registerUser(email, password);
+      const payload = response.data;
+
+      if (onLogin && payload?.token) {
+        onLogin(response);
+        setStatus({ type: "success", message: response.message || "Account erstellt – weiter zur Creator DNA…" });
+        setTimeout(() => nav("/dna"), 500);
       } else {
-        setMsg("Registrierung erfolgreich! Du kannst dich jetzt einloggen.");
+        setStatus({ type: "success", message: response.message || "Registrierung erfolgreich!" });
         setTimeout(() => nav("/login"), 800);
       }
     } catch (err) {
-      console.error("Registration error:", err);
-      if (err.code === "ERR_NETWORK") {
-        setMsg("Server nicht erreichbar. Bitte später erneut versuchen.");
-      } else {
-        setMsg("Fehler bei der Registrierung: " + (err.message || "Unbekannter Fehler"));
-      }
+      const detail = Array.isArray(err.details) && err.details.length ? err.details[0].message : null;
+      setStatus({
+        type: "error",
+        message: detail || err.message || "Registrierung fehlgeschlagen"
+      });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -48,33 +54,44 @@ export default function RegisterPage({ isAuthenticated }) {
           Erstelle deinen Account, um die Instagram Content KI zu nutzen.
         </p>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <label>
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <label htmlFor="register-email">
             E-Mail
             <input
+              id="register-email"
+              name="email"
               type="email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@mail.com"
+              inputMode="email"
             />
           </label>
-          <label>
+          <label htmlFor="register-password">
             Passwort
             <input
+              id="register-password"
+              name="password"
               type="password"
               required
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mind. 6 Zeichen"
             />
           </label>
 
-          <button type="submit" className="btn btn-primary auth-submit">
-            Registrieren
+          <button type="submit" className="btn btn-primary auth-submit" disabled={isLoading}>
+            {isLoading ? "Wird erstellt…" : "Registrieren"}
           </button>
 
-          {msg && <p className="status-message">{msg}</p>}
+          {status.message && (
+            <p className={`status-message ${status.type === "error" ? "error" : "success"}`}>
+              {status.message}
+            </p>
+          )}
         </form>
 
         <p className="auth-switch">

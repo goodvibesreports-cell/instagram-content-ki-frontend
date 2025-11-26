@@ -21,10 +21,6 @@ import {
   createOrganization,
   inviteTeamMember,
   updateContentStyle,
-  getApiKeyStatus,
-  setApiKey,
-  removeApiKey,
-  toggleUseOwnApiKeys,
   LANGUAGES
 } from "../api";
 
@@ -109,7 +105,7 @@ const TOOLS = {
   }
 };
 
-export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate }) {
+export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate, onNavigate }) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ prompts: 0, scripts: 0, uploads: 0 });
   const [isLoading, setIsLoading] = useState(false);
@@ -132,10 +128,6 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   // Style State
   const [styleForm, setStyleForm] = useState({});
   
-  // API Keys State
-  const [apiKeyStatus, setApiKeyStatus] = useState({});
-  const [newApiKey, setNewApiKey] = useState("");
-
   // Load data
   useEffect(() => {
     async function loadData() {
@@ -158,9 +150,6 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
       
       const orgRes = await getOrganization(token);
       if (orgRes.success) setOrganization(orgRes.data.organization);
-      
-      const keyRes = await getApiKeyStatus(token);
-      if (keyRes.success) setApiKeyStatus(keyRes.data);
     }
     loadData();
   }, [token]);
@@ -239,7 +228,16 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
             { id: "batch", icon: "⚡", title: "Batch Generator", desc: "10 Prompts + 10 Hooks + 10 Captions", cost: 5 },
             ...Object.entries(TOOLS).slice(0, 3).map(([k, t]) => ({ id: k, ...t, desc: t.description }))
           ].map(t => (
-            <div key={t.id} className="tool-card" onClick={() => window.dispatchEvent(new CustomEvent("navigate", { detail: t.id }))}>
+            <div
+              key={t.id}
+              className="tool-card"
+              onClick={() => onNavigate?.(t.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onNavigate?.(t.id);
+              }}
+            >
               <div className="tool-icon">{t.icon}</div>
               <h3 className="tool-title">{t.title}</h3>
               <p className="tool-description">{t.desc}</p>
@@ -403,42 +401,6 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           const res = await updateContentStyle(token, styleForm);
           if (res.success) alert("Stil gespeichert!"); else alert(res.error?.message);
         }}>💾 Speichern</button>
-      </div>
-    );
-  }
-
-  // API Keys
-  if (currentPage === "apikeys") {
-    return (
-      <div className="card">
-        <div className="card-header"><h2 className="card-title">🔑 API Keys</h2><p className="card-subtitle">Verwende deinen eigenen OpenAI Key (keine Credits nötig)</p></div>
-        <div style={{ padding: "1rem", background: apiKeyStatus.keys?.openai ? "rgba(16, 185, 129, 0.1)" : "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)", marginBottom: "1rem" }}>
-          <strong>OpenAI API Key:</strong> {apiKeyStatus.keys?.openai ? "✅ Hinterlegt" : "❌ Nicht hinterlegt"}
-        </div>
-        {!apiKeyStatus.keys?.openai ? (
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <input type="password" className="form-input" placeholder="sk-..." value={newApiKey} onChange={e => setNewApiKey(e.target.value)} />
-            <button className="btn btn-primary" onClick={async () => {
-              const res = await setApiKey(token, "openai", newApiKey);
-              if (res.success) { setApiKeyStatus(p => ({ ...p, keys: { ...p.keys, openai: true } })); setNewApiKey(""); alert("API Key gespeichert!"); }
-              else alert(res.error?.message);
-            }}>Speichern</button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="btn btn-secondary" onClick={async () => {
-              const res = await toggleUseOwnApiKeys(token, !apiKeyStatus.useOwnApiKeys);
-              if (res.success) setApiKeyStatus(p => ({ ...p, useOwnApiKeys: res.data.useOwnApiKeys }));
-            }}>{apiKeyStatus.useOwnApiKeys ? "🔄 Platform-Credits nutzen" : "⚡ Eigenen Key nutzen"}</button>
-            <button className="btn btn-ghost" onClick={async () => {
-              if (confirm("API Key wirklich entfernen?")) {
-                await removeApiKey(token, "openai");
-                setApiKeyStatus(p => ({ ...p, keys: { ...p.keys, openai: false }, useOwnApiKeys: false }));
-              }
-            }}>🗑️ Entfernen</button>
-          </div>
-        )}
-        {apiKeyStatus.useOwnApiKeys && <p style={{ marginTop: "1rem", color: "var(--success)" }}>✅ Du verwendest deinen eigenen API Key - keine Credits werden verbraucht!</p>}
       </div>
     );
   }

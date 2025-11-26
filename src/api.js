@@ -1,7 +1,6 @@
-// src/api.js - Instagram Content KI API v3.0
 import axios from "axios";
 
-export const BACKEND_URL = "https://instagram-content-ki-backend.onrender.com";
+export const BACKEND_URL = import.meta.env.VITE_API_URL || "https://instagram-content-ki-backend.onrender.com";
 
 export const api = axios.create({
   baseURL: BACKEND_URL,
@@ -12,28 +11,80 @@ function authHeader(token) {
   return { headers: { Authorization: `Bearer ${token}` } };
 }
 
+function normalizeError(err) {
+  if (err.response?.data?.error) {
+    const { code, message, details } = err.response.data.error;
+    const error = new Error(message || "Unbekannter Fehler");
+    error.code = code;
+    error.details = details;
+    error.status = err.response.status;
+    return error;
+  }
+
+  if (err.code === "ERR_NETWORK") {
+    const error = new Error("Server nicht erreichbar. Bitte später erneut versuchen.");
+    error.code = "ERR_NETWORK";
+    return error;
+  }
+
+  return new Error(err.message || "Unbekannter Fehler");
+}
+
+async function request(promise) {
+  try {
+    const res = await promise;
+    return res.data;
+  } catch (err) {
+    throw normalizeError(err);
+  }
+}
+
 function handleError(err) {
-  if (err.response?.data) return err.response.data;
-  if (err.code === "ERR_NETWORK") return { success: false, error: { message: "Server nicht erreichbar" } };
-  return { success: false, error: { message: err.message } };
+  const error = normalizeError(err);
+  return {
+    success: false,
+    error: {
+      code: error.code,
+      message: error.message,
+      details: error.details
+    }
+  };
 }
 
 // ==============================
 // Auth
 // ==============================
 export async function registerUser(email, password) {
-  try { return (await api.post("/auth/register", { email, password })).data; }
-  catch (err) { return handleError(err); }
+  return request(api.post("/auth/register", { email, password }));
+}
+
+export async function verifyEmail(token) {
+  return request(api.post("/auth/verify", { token }));
 }
 
 export async function loginUser(email, password) {
-  try { return (await api.post("/auth/login", { email, password })).data; }
-  catch (err) { return handleError(err); }
+  return request(api.post("/auth/login", { email, password }));
 }
 
 export async function fetchMe(token) {
-  try { return (await api.get("/auth/me", authHeader(token))).data; }
-  catch (err) { return handleError(err); }
+  return request(api.get("/auth/me", authHeader(token)));
+}
+
+export async function updatePlatformMode(token, platform) {
+  return request(api.put("/auth/platform-mode", { platform }, authHeader(token)));
+}
+
+// ==============================
+// Creator DNA
+// ==============================
+export async function getCreatorProfile(token) {
+  const response = await request(api.get("/creator", authHeader(token)));
+  return response.data;
+}
+
+export async function saveCreatorProfile(token, payload) {
+  const response = await request(api.post("/creator", payload, authHeader(token)));
+  return response.data;
 }
 
 // ==============================
@@ -60,30 +111,7 @@ export async function updateGeneralSettings(token, settings) {
 }
 
 // ==============================
-// API Keys
-// ==============================
-export async function getApiKeyStatus(token) {
-  try { return (await api.get("/settings/api-keys", authHeader(token))).data; }
-  catch (err) { return handleError(err); }
-}
-
-export async function setApiKey(token, provider, apiKey) {
-  try { return (await api.post("/settings/api-keys", { provider, apiKey }, authHeader(token))).data; }
-  catch (err) { return handleError(err); }
-}
-
-export async function removeApiKey(token, provider) {
-  try { return (await api.delete(`/settings/api-keys/${provider}`, authHeader(token))).data; }
-  catch (err) { return handleError(err); }
-}
-
-export async function toggleUseOwnApiKeys(token, useOwnApiKeys) {
-  try { return (await api.put("/settings/api-keys/toggle", { useOwnApiKeys }, authHeader(token))).data; }
-  catch (err) { return handleError(err); }
-}
-
-// ==============================
-// Upload
+// Upload & Posts
 // ==============================
 export async function uploadPosts(file, token = null) {
   try {
@@ -104,7 +132,7 @@ export async function getPosts(token = null, options = {}) {
 }
 
 // ==============================
-// AI Generation - Core
+// AI Generation
 // ==============================
 export async function generatePrompts(token = null, options = {}) {
   try { return (await api.post("/generate-prompts", options, token ? authHeader(token) : {})).data; }
@@ -116,9 +144,6 @@ export async function generateVideoIdeas(prompts, token = null, detailed = true)
   catch (err) { return handleError(err); }
 }
 
-// ==============================
-// AI Generation - Advanced
-// ==============================
 export async function generateHooks(topic, token = null, options = {}) {
   try { return (await api.post("/ai/hooks", { topic, ...options }, token ? authHeader(token) : {})).data; }
   catch (err) { return handleError(err); }
@@ -245,7 +270,7 @@ export async function deleteOrganization(token) {
 }
 
 // ==============================
-// History
+// History & Admin
 // ==============================
 export async function getHistory(token, options = {}) {
   try {
@@ -256,9 +281,6 @@ export async function getHistory(token, options = {}) {
   } catch (err) { return handleError(err); }
 }
 
-// ==============================
-// Admin
-// ==============================
 export async function getAdminStats(token) {
   try { return (await api.get("/admin/stats", authHeader(token))).data; }
   catch (err) { return handleError(err); }
@@ -294,6 +316,5 @@ export const LANGUAGES = {
   pl: "Polski",
   ru: "Русский",
   ja: "日本語",
-  ko: "한국어",
-  zh: "中文"
+  ko: "한국어"
 };

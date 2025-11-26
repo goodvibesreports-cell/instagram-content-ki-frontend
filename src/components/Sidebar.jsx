@@ -28,7 +28,6 @@ const navItems = [
     items: [
       { id: "team", icon: "👥", label: "Team", badge: "NEU" },
       { id: "style", icon: "🎨", label: "KI-Assistent" },
-      { id: "apikeys", icon: "🔑", label: "API Keys" },
       { id: "settings", icon: "⚙️", label: "Einstellungen" },
       { id: "credits", icon: "💰", label: "Credits kaufen" },
     ]
