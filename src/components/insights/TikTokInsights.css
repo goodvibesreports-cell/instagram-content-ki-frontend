@@ -196,6 +196,36 @@
   margin-top: 0.5rem;
 }
 
+.analysis-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.analysis-list li {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.analysis-list strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
 .dna-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

@@ -7,6 +7,9 @@ import VerifyPage from "./pages/Verify.jsx";
 import CreatorDNAPage from "./pages/CreatorDNA.jsx";
 import DashboardPage from "./pages/Dashboard.jsx";
 import PublicSharePage from "./pages/PublicShare.jsx";
+import TikTokAnalyzerPro from "./pages/TikTokAnalyzerPro.jsx";
+import InstagramAnalyzerPro from "./pages/InstagramAnalyzerPro.jsx";
+import FacebookAnalyzerPro from "./pages/FacebookAnalyzerPro.jsx";
 import {
   fetchMe,
   logoutSession,
@@ -170,6 +173,57 @@ export default function App() {
                 onNavigate={handleNavigate}
                 onCreditsUpdate={setCredits}
               />
+            </Layout>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/tiktok/insights/:id"
+        element={(
+          <ProtectedRoute token={token} user={user}>
+            <Layout
+              theme={theme}
+              onLogout={handleLogout}
+              userEmail={user?.email}
+              credits={credits}
+              onNavigate={handleNavigate}
+              currentPage="insights"
+            >
+              <TikTokAnalyzerPro token={token} />
+            </Layout>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/instagram/insights/:id"
+        element={(
+          <ProtectedRoute token={token} user={user}>
+            <Layout
+              theme={theme}
+              onLogout={handleLogout}
+              userEmail={user?.email}
+              credits={credits}
+              onNavigate={handleNavigate}
+              currentPage="insights"
+            >
+              <InstagramAnalyzerPro token={token} />
+            </Layout>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/facebook/insights/:id"
+        element={(
+          <ProtectedRoute token={token} user={user}>
+            <Layout
+              theme={theme}
+              onLogout={handleLogout}
+              userEmail={user?.email}
+              credits={credits}
+              onNavigate={handleNavigate}
+              currentPage="insights"
+            >
+              <FacebookAnalyzerPro token={token} />
             </Layout>
           </ProtectedRoute>
         )}

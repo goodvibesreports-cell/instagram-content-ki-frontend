@@ -326,12 +326,27 @@ export async function uploadFolder(files, token = null) {
   } catch (err) { return handleError(err); }
 }
 
-export async function fetchTikTokAnalysis(datasetId, token = null) {
+async function fetchPlatformAnalysis(platform, datasetId, token = null) {
   try {
-    return (await api.get(`/upload/analysis/tiktok?datasetId=${datasetId}`, authHeader(token))).data;
+    if (!platform || !datasetId) {
+      throw new Error("Platform und datasetId werden benötigt");
+    }
+    return (await api.get(`/upload/analysis/${platform.toLowerCase()}?datasetId=${datasetId}`, authHeader(token))).data;
   } catch (err) {
     return handleError(err);
   }
+}
+
+export function fetchTikTokAnalysis(datasetId, token = null) {
+  return fetchPlatformAnalysis("tiktok", datasetId, token);
+}
+
+export function fetchInstagramAnalysis(datasetId, token = null) {
+  return fetchPlatformAnalysis("instagram", datasetId, token);
+}
+
+export function fetchFacebookAnalysis(datasetId, token = null) {
+  return fetchPlatformAnalysis("facebook", datasetId, token);
 }
 
 export async function getUploadDatasets(token) {
