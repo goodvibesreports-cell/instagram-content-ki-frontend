@@ -89,7 +89,7 @@ function PlatformSection({ platform, data }) {
   );
 }
 
-export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights, resetSignal = 0 }) {
+export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = null, resetSignal = 0 }) {
   const [datasets, setDatasets] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedDataset, setSelectedDataset] = useState(null);
@@ -396,6 +396,17 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights, r
                   </div>
                 </section>
               ) : null}
+              {onViewInsights && unifiedAnalysis && (
+                <div className="insights-action-row" style={{ justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => onViewInsights(selectedDataset, unifiedAnalysis, selectedDataset?.metadata || {})}
+                  >
+                    🔍 Creator Insights öffnen
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
