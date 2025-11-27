@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { fetchFacebookAnalysis } from "../api.js";
 import PlatformAnalysisView from "../components/insights/PlatformAnalysisView.jsx";
 
-export default function FacebookAnalyzerPro({ token }) {
+export default function FacebookAnalyzerPro({ token, onBack }) {
   const { id: datasetId } = useParams();
   const [analysis, setAnalysis] = useState(null);
   const [videoCount, setVideoCount] = useState(0);
@@ -45,6 +45,7 @@ export default function FacebookAnalyzerPro({ token }) {
       error={error}
       analysis={analysis}
       videoCount={videoCount}
+      onBack={onBack}
     />
   );
 }

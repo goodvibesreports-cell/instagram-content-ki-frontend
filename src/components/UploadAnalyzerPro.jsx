@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fetchUnifiedAnalysis, getUploadDataset, getUploadDatasets } from "../api.js";
 
 const numberFormatter = new Intl.NumberFormat("de-DE");
@@ -89,7 +89,7 @@ function PlatformSection({ platform, data }) {
   );
 }
 
-export default function UploadAnalyzerPro({ token, lastUpload }) {
+export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights, resetSignal = 0 }) {
   const [datasets, setDatasets] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedDataset, setSelectedDataset] = useState(null);
@@ -98,8 +98,21 @@ export default function UploadAnalyzerPro({ token, lastUpload }) {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [unifiedAnalysis, setUnifiedAnalysis] = useState(null);
   const [error, setError] = useState(null);
+  const resetRef = useRef(resetSignal);
 
   const hasToken = Boolean(token);
+
+  useEffect(() => {
+    if (resetRef.current === resetSignal) return;
+    resetRef.current = resetSignal;
+    setDatasets([]);
+    setSelectedId(null);
+    setSelectedDataset(null);
+    setUnifiedAnalysis(null);
+    setError(null);
+    setDetailLoading(false);
+    setAnalysisLoading(false);
+  }, [resetSignal]);
 
   const loadDatasets = useCallback(
     async (selectFirst = false) => {

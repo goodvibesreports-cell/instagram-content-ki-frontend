@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import LoginPage from "./pages/Login.jsx";
 import RegisterPage from "./pages/Register.jsx";
@@ -28,12 +28,15 @@ function ProtectedRoute({ token, user, requireProfile = true, children }) {
 }
 
 export default function App() {
+  const navigateRouter = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState(() => getStoredSession());
   const [user, setUser] = useState(null);
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [theme] = useState("dark");
   const [currentPage, setCurrentPage] = useState("dashboard");
+  const [viewVersion, setViewVersion] = useState(0);
   const token = session?.accessToken || null;
 
   useEffect(() => {
@@ -114,6 +117,10 @@ export default function App() {
   function handleNavigate(page) {
     if (!page) return;
     setCurrentPage(page);
+    setViewVersion((version) => version + 1);
+    if (location.pathname !== "/dashboard") {
+      navigateRouter("/dashboard");
+    }
   }
 
   if (loading) {
@@ -170,6 +177,7 @@ export default function App() {
                 token={token}
                 userEmail={user?.email}
                 currentPage={currentPage}
+                viewVersion={viewVersion}
                 onNavigate={handleNavigate}
                 onCreditsUpdate={setCredits}
               />
@@ -189,7 +197,7 @@ export default function App() {
               onNavigate={handleNavigate}
               currentPage="insights"
             >
-              <TikTokAnalyzerPro token={token} />
+              <TikTokAnalyzerPro token={token} onBack={() => handleNavigate("dashboard")} />
             </Layout>
           </ProtectedRoute>
         )}
@@ -206,7 +214,7 @@ export default function App() {
               onNavigate={handleNavigate}
               currentPage="insights"
             >
-              <InstagramAnalyzerPro token={token} />
+              <InstagramAnalyzerPro token={token} onBack={() => handleNavigate("dashboard")} />
             </Layout>
           </ProtectedRoute>
         )}
@@ -223,7 +231,7 @@ export default function App() {
               onNavigate={handleNavigate}
               currentPage="insights"
             >
-              <FacebookAnalyzerPro token={token} />
+              <FacebookAnalyzerPro token={token} onBack={() => handleNavigate("dashboard")} />
             </Layout>
           </ProtectedRoute>
         )}

@@ -12,6 +12,10 @@ export default function Layout({ children, theme, onLogout, userEmail, credits =
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [currentPage]);
+
   return (
     <div className="dashboard-layout">
       <Sidebar 

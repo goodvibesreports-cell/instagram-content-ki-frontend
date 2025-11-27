@@ -152,7 +152,7 @@ function formatReadableDate(date) {
   return date.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" });
 }
 
-export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate, onNavigate }) {
+export default function Dashboard({ token, userEmail, currentPage, onCreditsUpdate, onNavigate, viewVersion = 0 }) {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ prompts: 0, scripts: 0, uploads: 0 });
   const [latestUpload, setLatestUpload] = useState(null);
@@ -207,6 +207,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   
   // Style State
   const [styleForm, setStyleForm] = useState({});
+  const [analyzerResetKey, setAnalyzerResetKey] = useState(0);
   
   // Load data
   useEffect(() => {
@@ -239,6 +240,16 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
     setError(null);
     setBatchResult(null);
   }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage === "dashboard") {
+      setAnalyzerResetKey((key) => key + 1);
+    }
+    if (currentPage !== "insights") {
+      setInsightsContext(null);
+      sessionStorage.removeItem(INSIGHTS_STORAGE_KEY);
+    }
+  }, [currentPage, viewVersion]);
   
   useEffect(() => {
     if (currentPage !== "calendar" || !token) return;
@@ -440,18 +451,23 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
     onNavigate?.("insights");
   }
 
+  function handleExitInsights() {
+    setInsightsContext(null);
+    sessionStorage.removeItem(INSIGHTS_STORAGE_KEY);
+    onNavigate?.("dashboard");
+  }
+
   // ======== RENDER PAGES ========
 
   if (currentPage === "insights") {
     return (
-      <div className="card insights-card-shell">
-        <TikTokInsights
-          token={token}
-          datasetContext={insightsContext}
-          onUpdateContext={setInsightsContext}
-          profileName={insightsProfileName}
-        />
-      </div>
+      <TikTokInsights
+        token={token}
+        datasetContext={insightsContext}
+        onUpdateContext={setInsightsContext}
+        profileName={insightsProfileName}
+        onBack={handleExitInsights}
+      />
     );
   }
 
@@ -515,6 +531,7 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
           token={token}
           lastUpload={latestUpload}
           onViewInsights={handleViewInsights}
+          resetSignal={analyzerResetKey}
         />
         <ToolDescription {...toolDescriptions.upload} />
         <h2 style={{ marginBottom: "1rem" }}>🚀 Schnellzugriff</h2>

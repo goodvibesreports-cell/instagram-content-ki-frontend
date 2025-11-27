@@ -18,7 +18,7 @@ function formatDate(value) {
   }
 }
 
-export default function PlatformAnalysisView({ platform, datasetId, loading, error, analysis, videoCount }) {
+export default function PlatformAnalysisView({ platform, datasetId, loading, error, analysis, videoCount, onBack }) {
   if (loading) {
     return (
       <div className="card insights-card-shell">
@@ -53,6 +53,13 @@ export default function PlatformAnalysisView({ platform, datasetId, loading, err
 
   return (
     <div className="card insights-card-shell">
+      {onBack && (
+        <div className="insights-action-bar" style={{ justifyContent: "flex-start" }}>
+          <button type="button" className="btn btn-ghost" onClick={onBack}>
+            ← Zurück zum Dashboard
+          </button>
+        </div>
+      )}
       <header className="card-header" style={{ alignItems: "flex-start" }}>
         <div>
           <h2 className="card-title">📊 {platform.toUpperCase()} Insights</h2>

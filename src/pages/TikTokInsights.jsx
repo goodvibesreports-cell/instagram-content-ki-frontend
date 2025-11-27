@@ -19,7 +19,8 @@ export default function TikTokInsights({
   datasetContext,
   onUpdateContext,
   profileName = "Creator",
-  readOnly = false
+  readOnly = false,
+  onBack
 }) {
   const hourChartRef = useRef(null);
   const dayChartRef = useRef(null);
@@ -311,35 +312,44 @@ export default function TikTokInsights({
         </div>
       </div>
 
-      {!readOnly && (
+      {(onBack || !readOnly) && (
         <div className="insights-action-bar">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleExportPdf}
-            disabled={actionLoading.pdf}
-            title="Download as PDF"
-          >
-            {actionLoading.pdf ? "Exportiere…" : "📄 Export PDF"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleExportCsv}
-            disabled={actionLoading.csv}
-            title="Download CSV"
-          >
-            {actionLoading.csv ? "Erstelle CSV…" : "📊 Export CSV"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleShareLink}
-            disabled={actionLoading.share}
-            title="Create shareable link"
-          >
-            {actionLoading.share ? "Erstelle Link…" : "🔗 Share Public Link"}
-          </button>
+          {onBack && (
+            <button type="button" className="btn btn-ghost" onClick={onBack}>
+              ← Zurück zum Dashboard
+            </button>
+          )}
+          {!readOnly && (
+            <div className="insights-action-buttons">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportPdf}
+                disabled={actionLoading.pdf}
+                title="Download as PDF"
+              >
+                {actionLoading.pdf ? "Exportiere…" : "📄 Export PDF"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportCsv}
+                disabled={actionLoading.csv}
+                title="Download CSV"
+              >
+                {actionLoading.csv ? "Erstelle CSV…" : "📊 Export CSV"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleShareLink}
+                disabled={actionLoading.share}
+                title="Create shareable link"
+              >
+                {actionLoading.share ? "Erstelle Link…" : "🔗 Share Public Link"}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {notification && (
