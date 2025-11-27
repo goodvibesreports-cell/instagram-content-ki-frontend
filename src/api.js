@@ -304,7 +304,7 @@ export async function updateGeneralSettings(token, settings) {
 // ==============================
 // Upload & Posts
 // ==============================
-export async function uploadPosts(file, platform = "tiktok", token = null) {
+export async function uploadPosts(file, token = null) {
   try {
     if (!file) {
       throw new Error("Keine Datei ausgewählt");
@@ -314,14 +314,13 @@ export async function uploadPosts(file, platform = "tiktok", token = null) {
     }
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("platform", platform);
     const authToken = getEffectiveToken(token);
     const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
     return (await api.post("/upload", formData, config)).data;
   } catch (err) { return handleError(err); }
 }
 
-export async function uploadFolder(files, platform = "tiktok", token = null) {
+export async function uploadFolder(files, token = null) {
   try {
     const fileEntries = Array.from(files || []);
     const validFiles = fileEntries.filter((file) => file && file.size);
@@ -330,11 +329,21 @@ export async function uploadFolder(files, platform = "tiktok", token = null) {
     }
     const formData = new FormData();
     validFiles.forEach((file) => formData.append("files", file));
-    formData.append("platform", platform);
     const authToken = getEffectiveToken(token);
     const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
     return (await api.post("/upload/folder", formData, config)).data;
   } catch (err) { return handleError(err); }
+}
+
+export async function uploadUniversal(files, token = null) {
+  const normalized = Array.isArray(files) ? files : [files];
+  if (!normalized.length) {
+    throw new Error("Keine Dateien ausgewählt");
+  }
+  if (normalized.length === 1) {
+    return uploadPosts(normalized[0], token);
+  }
+  return uploadFolder(normalized, token);
 }
 
 async function fetchPlatformAnalysis(platform, datasetId, token = null) {
@@ -358,6 +367,17 @@ export function fetchInstagramAnalysis(datasetId, token = null) {
 
 export function fetchFacebookAnalysis(datasetId, token = null) {
   return fetchPlatformAnalysis("facebook", datasetId, token);
+}
+
+export async function fetchUnifiedAnalysis(datasetId, token = null) {
+  try {
+    if (!datasetId) {
+      throw new Error("datasetId wird benötigt");
+    }
+    return (await api.get(`/upload/analysis/unified/${datasetId}`, authHeader(token))).data;
+  } catch (err) {
+    return handleError(err);
+  }
 }
 
 export async function getUploadDatasets(token) {

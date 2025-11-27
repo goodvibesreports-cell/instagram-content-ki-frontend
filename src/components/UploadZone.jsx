@@ -1,31 +1,27 @@
 // src/components/UploadZone.jsx
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { uploadPosts, uploadFolder } from "../api";
+import { uploadUniversal } from "../api";
 
-const PLATFORM_OPTIONS = [
-  { value: "tiktok", label: "TikTok" },
-  { value: "instagram", label: "Instagram (Beta)" },
-  { value: "facebook", label: "Facebook (Beta)" }
-];
+const ALLOWED_EXTENSIONS = [".json", ".zip", ".txt", ".csv"];
 
 export function buildFileTree(fileList = []) {
   const entries = Array.from(fileList || []);
-  const jsonFiles = [];
+  const allowedFiles = [];
   const tree = entries.map((file) => {
     const path = file.webkitRelativePath || file.relativePath || file.name;
-    const isJson = file.name.toLowerCase().endsWith(".json");
-    const isUsableJson = isJson && file.size > 0;
-    if (isUsableJson) {
-      jsonFiles.push(file);
+    const extension = file.name ? file.name.toLowerCase().substring(file.name.lastIndexOf(".")) : "";
+    const isAllowed = ALLOWED_EXTENSIONS.includes(extension) && file.size > 0;
+    if (isAllowed) {
+      allowedFiles.push(file);
     }
-    return { path, isJson, size: file.size };
+    return { path, isAllowed, size: file.size };
   });
 
   return {
-    jsonFiles,
+    files: allowedFiles,
     totalFiles: entries.length,
-    jsonCount: jsonFiles.length,
+    allowedCount: allowedFiles.length,
     tree
   };
 }
@@ -36,7 +32,6 @@ export default function UploadZone({ token, onUploadSuccess }) {
   const [uploadResult, setUploadResult] = useState(null);
   const [folderSummary, setFolderSummary] = useState(null);
   const [error, setError] = useState(null);
-  const [platform, setPlatform] = useState("tiktok");
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const navigate = useNavigate();
@@ -44,8 +39,9 @@ export default function UploadZone({ token, onUploadSuccess }) {
   async function handleFile(file) {
     if (!file) return;
 
-    if (!file.name.endsWith(".json")) {
-      setError("Bitte nur JSON-Dateien hochladen");
+    const extension = file.name ? file.name.toLowerCase().substring(file.name.lastIndexOf(".")) : "";
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      setError("Bitte nur JSON-, ZIP-, TXT- oder CSV-Dateien hochladen");
       return;
     }
     if (!file.size) {
@@ -58,22 +54,24 @@ export default function UploadZone({ token, onUploadSuccess }) {
     setUploadResult(null);
 
     try {
-      const result = await uploadPosts(file, platform, token);
+      const result = await uploadUniversal([file], token);
       if (result.success) {
         const meta = result.meta || result.data?.meta || {};
         const analysis = result.analysis || result.data?.analysis || null;
-        const postsPreview = result.postsPreview || result.posts || result.data?.posts || [];
+        const postsPreview = result.itemsPreview || result.postsPreview || result.posts || result.items || [];
         const links = postsPreview.map((post) => post.link).filter(Boolean);
-        const count = result.totalPosts ?? result.count ?? postsPreview.length ?? 0;
+        const count = result.count ?? result.totalPosts ?? postsPreview.length ?? 0;
         const payload = {
           count,
           message: result.message || "Upload erfolgreich",
           meta,
-          platform: result.platform || platform,
+          platform: result.platform || "mixed",
+          platforms: result.platforms || [],
           posts: postsPreview,
           links,
           analysis,
-          summary: result.summary,
+          perPlatform: result.perPlatform || meta.perPlatform,
+          summary: result.summary || meta.summary,
           datasetId: result.datasetId,
           dataset: result.dataset,
           fileName:
@@ -86,7 +84,7 @@ export default function UploadZone({ token, onUploadSuccess }) {
 
         setUploadResult(payload);
         onUploadSuccess?.(payload);
-        const targetPlatform = (result.platform || platform || "tiktok").toLowerCase();
+        const targetPlatform = (payload.platforms?.[0] || payload.platform || "tiktok").toLowerCase();
         if (payload.datasetId && navigate) {
           navigate(`/${targetPlatform}/insights/${payload.datasetId}`);
         }
@@ -102,9 +100,9 @@ export default function UploadZone({ token, onUploadSuccess }) {
   }
 
   async function handleFolderFiles(fileList) {
-    const { jsonFiles, totalFiles, jsonCount } = buildFileTree(fileList);
-    if (!jsonFiles.length) {
-      setError("Keine JSON-Dateien im Ordner gefunden.");
+    const { files, totalFiles, allowedCount } = buildFileTree(fileList);
+    if (!files.length) {
+      setError("Keine gültigen Dateien im Ordner gefunden.");
       return;
     }
 
@@ -112,27 +110,33 @@ export default function UploadZone({ token, onUploadSuccess }) {
     setError(null);
     setUploadResult(null);
     try {
-      const response = await uploadFolder(jsonFiles, platform, token);
+      const response = await uploadUniversal(files, token);
       if (response?.success === false) {
         setError(response.error?.message || response.message || "Ordner-Upload fehlgeschlagen");
         return;
       }
 
-      const summaryPayload = {
+      const summaryPayload = response.summary || response.meta?.summary || {
         totalFiles: response.totalFiles ?? totalFiles,
-        processedFiles: response.processedFiles ?? jsonCount,
-        ignoredFiles: response.ignoredFiles ?? Math.max(totalFiles - jsonCount, 0),
-        jsonCount
+        processedFiles: response.processedFiles ?? allowedCount,
+        ignoredFiles: response.ignoredFiles ?? Math.max(totalFiles - allowedCount, 0),
+        allowedCount
       };
       setFolderSummary(summaryPayload);
 
+      const message =
+        response.message ||
+        `Ordner analysiert (${summaryPayload.processedFiles ?? 0}/${summaryPayload.totalFiles ?? 0})`;
+
       const payload = {
-        count: response.videoCount ?? 0,
-        message: `Ordner analysiert (${summaryPayload.processedFiles}/${summaryPayload.totalFiles})`,
-        platform: response.platform || "tiktok",
-        posts: [],
+        count: response.count ?? response.totalPosts ?? 0,
+        message,
+        platform: response.platform || "mixed",
+        platforms: response.platforms || [],
+        posts: response.itemsPreview || [],
         links: [],
         analysis: response.analysis,
+        perPlatform: response.perPlatform || response.meta?.perPlatform,
         summary: summaryPayload,
         datasetId: response.datasetId || response.dataset?._id || null,
         dataset: response.dataset || null
@@ -140,7 +144,7 @@ export default function UploadZone({ token, onUploadSuccess }) {
 
       setUploadResult(payload);
       onUploadSuccess?.(payload);
-      const targetPlatform = (response.platform || "tiktok").toLowerCase();
+      const targetPlatform = (payload.platforms?.[0] || payload.platform || "tiktok").toLowerCase();
       if (payload.datasetId && navigate) {
         navigate(`/${targetPlatform}/insights/${payload.datasetId}`);
       }
@@ -183,24 +187,10 @@ export default function UploadZone({ token, onUploadSuccess }) {
 
   return (
     <div>
-      <div className="form-group" style={{ marginBottom: "1rem" }}>
-        <label className="form-label">Plattform auswählen</label>
-        <select
-          className="form-select"
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          disabled={isUploading}
-        >
-          {PLATFORM_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {platform !== "tiktok" && (
-          <p className="helper-text">Beta: Ergebnisse noch eingeschränkt</p>
-        )}
-      </div>
+      <p className="helper-text" style={{ marginBottom: "1rem" }}>
+        Lade hier komplette Creator- oder Konto-Exporte (JSON/ZIP/TXT/CSV) hoch – keine einzelnen Videodateien. Rohvideos (.mp4,
+        .mov etc.) werden automatisch ignoriert, da die Analyse ausschließlich auf Metadaten basiert.
+      </p>
 
       <div className="upload-grid">
         <div
@@ -213,7 +203,7 @@ export default function UploadZone({ token, onUploadSuccess }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".json"
+            accept=".json,.zip,.txt,.csv"
             onChange={handleFileChange}
             style={{ display: "none" }}
           />
@@ -247,10 +237,10 @@ export default function UploadZone({ token, onUploadSuccess }) {
         </div>
 
         <div className="folder-upload-card">
-          <h4>📦 TikTok Ordner</h4>
+          <h4>📦 Plattform-Ordner</h4>
           <p>
-            Lade deinen kompletten TikTok Datenordner hoch – CreatorOS filtert automatisch alle JSON-Dateien
-            und ignoriert Watch History &amp; Likes.
+            Lade deinen kompletten Export-Ordner hoch – CreatorOS filtert automatisch alle relevanten JSON-Dateien und ignoriert
+            Watch History &amp; Likes.
           </p>
           <button
             type="button"
@@ -266,16 +256,22 @@ export default function UploadZone({ token, onUploadSuccess }) {
             webkitdirectory="true"
             directory="true"
             multiple
+            accept=".json,.zip,.txt,.csv"
             style={{ display: "none" }}
             onChange={(e) => handleFolderFiles(e.target.files)}
           />
         </div>
       </div>
 
+      <p className="helper-text" style={{ marginTop: "0.75rem" }}>
+        Bitte lade nur Creator- oder Konto-Exporte (JSON/ZIP/TXT/CSV) hoch – reine Videodateien (.mp4, .mov, .jpg usw.) werden
+        automatisch übersprungen und nicht ausgewertet.
+      </p>
+
       {folderSummary && (
         <div className="status-message info" style={{ marginTop: "1rem" }}>
           <strong>Folder Upload:</strong> {folderSummary.processedFiles ?? 0} von {folderSummary.totalFiles ?? 0} Dateien verarbeitet ·{" "}
-          {folderSummary.jsonCount ?? 0} JSON-Dateien erkannt · {folderSummary.ignoredFiles ?? 0} ignoriert
+          {folderSummary.ignoredFiles ?? 0} ignoriert
         </div>
       )}
 
