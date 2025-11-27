@@ -98,6 +98,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [unifiedAnalysis, setUnifiedAnalysis] = useState(null);
   const [error, setError] = useState(null);
+  const [analysisInfo, setAnalysisInfo] = useState("");
   const resetRef = useRef(resetSignal);
 
   const hasToken = Boolean(token);
@@ -112,6 +113,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
     setError(null);
     setDetailLoading(false);
     setAnalysisLoading(false);
+    setAnalysisInfo("");
   }, [resetSignal]);
 
   const loadDatasets = useCallback(
@@ -210,6 +212,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
     let isMounted = true;
     if (!token || !selectedDataset?._id) {
       setUnifiedAnalysis(null);
+      setAnalysisInfo("");
       return () => {
         isMounted = false;
       };
@@ -217,21 +220,30 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
 
     if (selectedDataset.metadata?.analysis) {
       setUnifiedAnalysis(selectedDataset.metadata.analysis);
+      setAnalysisInfo("");
       return undefined;
     }
 
     setAnalysisLoading(true);
+    setAnalysisInfo("");
     fetchUnifiedAnalysis(selectedDataset._id, token)
       .then((res) => {
         if (!isMounted) return;
         if (res.success) {
           setUnifiedAnalysis(res.analysis || null);
+          setAnalysisInfo(res.message || (!res.analysis ? "Keine Analyse verfügbar." : ""));
         } else {
+          setUnifiedAnalysis(null);
+          setAnalysisInfo("Analyse konnte nicht geladen werden.");
           setError(res.error?.message || "Analyse konnte nicht geladen werden");
         }
       })
       .catch((err) => {
-        if (isMounted) setError(err.message);
+        if (isMounted) {
+          setUnifiedAnalysis(null);
+          setAnalysisInfo("Analyse konnte nicht geladen werden.");
+          setError(err.message);
+        }
       })
       .finally(() => {
         if (isMounted) setAnalysisLoading(false);
@@ -257,6 +269,12 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
 
   const selectedSummary = selectedDataset?.metadata?.summary;
   const sampleItems = selectedDataset?.videos?.slice(0, 10) || [];
+  const totalPosts =
+    selectedDataset?.videos?.length ??
+    selectedDataset?.totals?.posts ??
+    selectedDataset?.metadata?.perPlatform?.tiktok?.count ??
+    0;
+  const hasPosts = totalPosts > 0;
 
   return (
     <div className="card" style={{ marginBottom: "2rem" }}>
@@ -329,6 +347,11 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                   {selectedSummary.totalFiles ?? 0} gesamt
                 </div>
               )}
+              {!hasPosts && (
+                <div className="status-message warning" style={{ marginBottom: "1rem" }}>
+                  Keine Posts gefunden – vermutlich enthält der Export nur Watch/History-Daten.
+                </div>
+              )}
 
               <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
                 <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -357,7 +380,15 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                     <InsightList title="Beste Wochentage" items={unifiedAnalysis.global.bestWeekdays} />
                   </>
                 ) : (
-                  <p style={{ color: "var(--text-muted)" }}>Noch keine Analyse vorhanden.</p>
+                  <>
+                    <p style={{ color: "var(--text-muted)" }}>Noch keine Analyse vorhanden.</p>
+                    {analysisInfo && <p className="card-subtitle">{analysisInfo}</p>}
+                  </>
+                )}
+                {analysisInfo && unifiedAnalysis?.global && (
+                  <p className="card-subtitle" style={{ marginTop: "0.5rem" }}>
+                    {analysisInfo}
+                  </p>
                 )}
               </div>
 
@@ -401,6 +432,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                   <button
                     type="button"
                     className="btn btn-primary"
+                    disabled={analysisLoading}
                     onClick={() => onViewInsights(selectedDataset, unifiedAnalysis, selectedDataset?.metadata || {})}
                   >
                     🔍 Creator Insights öffnen

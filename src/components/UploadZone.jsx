@@ -32,9 +32,11 @@ export default function UploadZone({ token, onUploadSuccess }) {
   const [uploadResult, setUploadResult] = useState(null);
   const [folderSummary, setFolderSummary] = useState(null);
   const [error, setError] = useState(null);
+  const [warning, setWarning] = useState(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const navigate = useNavigate();
+  const LARGE_WARNING_BYTES = 250 * 1024 * 1024;
 
   async function handleFile(file) {
     if (!file) return;
@@ -48,6 +50,7 @@ export default function UploadZone({ token, onUploadSuccess }) {
       setError("Die ausgewählte Datei ist leer (0 Bytes)");
       return;
     }
+    setWarning(file.size > LARGE_WARNING_BYTES ? "Datei ist größer als 250MB – Analyse kann etwas länger dauern." : null);
 
     setIsUploading(true);
     setError(null);
@@ -105,9 +108,14 @@ export default function UploadZone({ token, onUploadSuccess }) {
       setError("Keine gültigen Dateien im Ordner gefunden.");
       return;
     }
+    const largestFile = Math.max(...files.map((f) => f.size || 0), 0);
+    setWarning(
+      largestFile > LARGE_WARNING_BYTES ? "Es wurden sehr große Dateien entdeckt – Analyse kann länger dauern." : null
+    );
 
     setIsUploading(true);
     setError(null);
+    setWarning(null);
     setUploadResult(null);
     try {
       const response = await uploadUniversal(files, token);
@@ -272,6 +280,18 @@ export default function UploadZone({ token, onUploadSuccess }) {
         <div className="status-message info" style={{ marginTop: "1rem" }}>
           <strong>Folder Upload:</strong> {folderSummary.processedFiles ?? 0} von {folderSummary.totalFiles ?? 0} Dateien verarbeitet ·{" "}
           {folderSummary.ignoredFiles ?? 0} ignoriert
+        </div>
+      )}
+
+      {warning && (
+        <div
+          style={{
+            marginTop: "1rem",
+            color: "var(--warning)",
+            fontSize: "0.875rem"
+          }}
+        >
+          ⚠️ {warning}
         </div>
       )}
 
