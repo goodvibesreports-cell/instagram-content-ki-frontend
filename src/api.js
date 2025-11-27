@@ -98,8 +98,7 @@ function getEffectiveRefreshToken(explicitToken) {
 }
 
 export const api = axios.create({
-  baseURL: BACKEND_URL,
-  headers: { "Content-Type": "application/json" }
+  baseURL: BACKEND_URL
 });
 
 api.interceptors.request.use((config) => {
@@ -307,6 +306,12 @@ export async function updateGeneralSettings(token, settings) {
 // ==============================
 export async function uploadPosts(file, platform = "tiktok", token = null) {
   try {
+    if (!file) {
+      throw new Error("Keine Datei ausgewählt");
+    }
+    if (!file.size) {
+      throw new Error("Die ausgewählte Datei ist leer (0 Bytes)");
+    }
     const formData = new FormData();
     formData.append("file", file);
     formData.append("platform", platform);
@@ -316,10 +321,16 @@ export async function uploadPosts(file, platform = "tiktok", token = null) {
   } catch (err) { return handleError(err); }
 }
 
-export async function uploadFolder(files, token = null) {
+export async function uploadFolder(files, platform = "tiktok", token = null) {
   try {
+    const fileEntries = Array.from(files || []);
+    const validFiles = fileEntries.filter((file) => file && file.size);
+    if (!validFiles.length) {
+      throw new Error("Keine gültigen Dateien im Ordner (alle leer?)");
+    }
     const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
+    validFiles.forEach((file) => formData.append("files", file));
+    formData.append("platform", platform);
     const authToken = getEffectiveToken(token);
     const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
     return (await api.post("/upload/folder", formData, config)).data;

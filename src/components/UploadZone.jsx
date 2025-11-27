@@ -15,10 +15,11 @@ export function buildFileTree(fileList = []) {
   const tree = entries.map((file) => {
     const path = file.webkitRelativePath || file.relativePath || file.name;
     const isJson = file.name.toLowerCase().endsWith(".json");
-    if (isJson) {
+    const isUsableJson = isJson && file.size > 0;
+    if (isUsableJson) {
       jsonFiles.push(file);
     }
-    return { path, isJson };
+    return { path, isJson, size: file.size };
   });
 
   return {
@@ -45,6 +46,10 @@ export default function UploadZone({ token, onUploadSuccess }) {
 
     if (!file.name.endsWith(".json")) {
       setError("Bitte nur JSON-Dateien hochladen");
+      return;
+    }
+    if (!file.size) {
+      setError("Die ausgewählte Datei ist leer (0 Bytes)");
       return;
     }
 
@@ -107,7 +112,7 @@ export default function UploadZone({ token, onUploadSuccess }) {
     setError(null);
     setUploadResult(null);
     try {
-      const response = await uploadFolder(jsonFiles, token);
+      const response = await uploadFolder(jsonFiles, platform, token);
       if (response?.success === false) {
         setError(response.error?.message || response.message || "Ordner-Upload fehlgeschlagen");
         return;
