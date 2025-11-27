@@ -1,0 +1,326 @@
+.tiktok-insights-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.insights-card-shell {
+  padding: 1.5rem;
+}
+
+.insights-action-bar {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.insights-toast {
+  align-self: flex-end;
+}
+
+.insights-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.insights-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.insights-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.insights-placeholder {
+  padding: 2rem;
+  text-align: center;
+  border-radius: var(--border-radius);
+  border: 1px dashed var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.insights-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.insights-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.insights-summary-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+
+.insights-summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.metric-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.metric-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.insights-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.section-header h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.section-header p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: 0.2rem;
+}
+
+.empty-state {
+  padding: 1rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px dashed var(--border-color);
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.insights-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.chart-wrapper {
+  width: 100%;
+  height: 280px;
+}
+
+.top-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.top-video-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+.top-video-cover {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  background: var(--bg-tertiary);
+  display: block;
+}
+
+.top-video-cover.placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.top-video-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.top-video-rank {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.top-video-meta,
+.top-video-sound {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.top-video-actions {
+  margin-top: 0.5rem;
+}
+
+.dna-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dna-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--bg-tertiary);
+}
+
+.dna-card.accent {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.dna-icon {
+  font-size: 1.4rem;
+}
+
+.dna-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.dna-details-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 1rem;
+}
+
+.dna-pill-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dna-pill-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.dna-pill-collection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dna-pill {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  font-size: 0.8rem;
+}
+
+.ai-summary-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ai-summary-list li {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 0.85rem;
+  background: var(--bg-tertiary);
+}
+
+.ai-summary-list strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.insights-tooltip {
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.public-share-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding: 2rem 1rem;
+}
+
+.public-share-card {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.public-share-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.public-share-header h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.2rem;
+}
+
+@media (max-width: 640px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .top-video-cover {
+    height: 140px;
+  }
+
+  .public-share-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
