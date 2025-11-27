@@ -6,6 +6,7 @@ import RegisterPage from "./pages/Register.jsx";
 import VerifyPage from "./pages/Verify.jsx";
 import CreatorDNAPage from "./pages/CreatorDNA.jsx";
 import DashboardPage from "./pages/Dashboard.jsx";
+import PublicSharePage from "./pages/PublicShare.jsx";
 import {
   fetchMe,
   logoutSession,
@@ -28,7 +29,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  const [theme] = useState("dark");
   const [currentPage, setCurrentPage] = useState("dashboard");
   const token = session?.accessToken || null;
 
@@ -116,7 +117,7 @@ export default function App() {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
-        <p>Starte Creator OS…</p>
+        <p>Starte CreatorOS…</p>
       </div>
     );
   }
@@ -126,13 +127,14 @@ export default function App() {
       <Route path="/login" element={<LoginPage onLogin={handleLogin} isAuthenticated={!!token} />} />
       <Route path="/register" element={<RegisterPage onLogin={handleLogin} isAuthenticated={!!token} />} />
       <Route path="/verify" element={<VerifyPage />} />
+      <Route path="/share/:token" element={<PublicSharePage />} />
       <Route
         path="/dna"
         element={(
           <ProtectedRoute token={token} user={user} requireProfile={false}>
             <Layout
               theme={theme}
-              onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+              onToggleTheme={() => {}}
               onLogout={handleLogout}
               userEmail={user?.email}
               credits={credits}
@@ -154,7 +156,7 @@ export default function App() {
           <ProtectedRoute token={token} user={user}>
             <Layout
               theme={theme}
-              onToggleTheme={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+              onToggleTheme={() => {}}
               onLogout={handleLogout}
               userEmail={user?.email}
               credits={credits}

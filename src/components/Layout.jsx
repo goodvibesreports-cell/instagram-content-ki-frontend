@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 
-export default function Layout({ children, theme, onToggleTheme, onLogout, userEmail, credits = 0, onNavigate, currentPage }) {
+export default function Layout({ children, theme, onLogout, userEmail, credits = 0, onNavigate, currentPage }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Apply theme
@@ -24,7 +24,6 @@ export default function Layout({ children, theme, onToggleTheme, onLogout, userE
       <main className="main-content">
         <Topbar 
           theme={theme}
-          onToggleTheme={onToggleTheme}
           onLogout={onLogout}
           userEmail={userEmail}
           credits={credits}

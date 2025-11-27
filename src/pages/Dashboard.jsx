@@ -6,6 +6,9 @@ import UploadAnalyzerPro from "../components/UploadAnalyzerPro.jsx";
 import GeneratorTool from "../components/GeneratorTool.jsx";
 import ToolDescription from "../components/ToolDescription.jsx";
 import { toolDescriptions } from "../data/toolDescriptions.js";
+import TikTokInsights from "./TikTokInsights.jsx";
+import { INSIGHTS_STORAGE_KEY } from "../constants/storageKeys.js";
+import creatorOSBranding from "../constants/creatorOSBranding.js";
 import {
   getProfile,
   getHistory,
@@ -394,19 +397,109 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
     }
   }
 
+  const [insightsContext, setInsightsContext] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(INSIGHTS_STORAGE_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (!insightsContext) {
+      sessionStorage.removeItem(INSIGHTS_STORAGE_KEY);
+      return;
+    }
+    sessionStorage.setItem(INSIGHTS_STORAGE_KEY, JSON.stringify(insightsContext));
+  }, [insightsContext]);
+
+  const insightsProfileName = useMemo(() => {
+    return (
+      profile?.creatorProfile?.personaName ||
+      profile?.creatorProfile?.niche ||
+      profile?.email ||
+      userEmail ||
+      "Creator"
+    );
+  }, [profile, userEmail]);
+
+  function handleViewInsights(dataset, analysis, meta) {
+    if (!analysis) return;
+    const payload = {
+      datasetId: dataset?._id || dataset?.id || null,
+      datasetName: dataset?.sourceFilename || dataset?.name || "TikTok Export",
+      updatedAt: dataset?.updatedAt || dataset?.createdAt || new Date().toISOString(),
+      analysis,
+      meta,
+      profileName: insightsProfileName,
+      platform: analysis?.platform || dataset?.platform || dataset?.rawPlatform || "tiktok",
+      aiSummary: analysis?.aiSummary || null
+    };
+    setInsightsContext(payload);
+    onNavigate?.("insights");
+  }
+
   // ======== RENDER PAGES ========
+
+  if (currentPage === "insights") {
+    return (
+      <div className="card insights-card-shell">
+        <TikTokInsights
+          token={token}
+          datasetContext={insightsContext}
+          onUpdateContext={setInsightsContext}
+          profileName={insightsProfileName}
+        />
+      </div>
+    );
+  }
 
   // Dashboard Overview
   if (currentPage === "dashboard") {
+    const heroCopy = creatorOSBranding.webCopy.hero;
+    const scrollToUpload = () => {
+      document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
     return (
       <div>
+        <section className="cos-hero">
+          <div>
+            <p className="cos-hero-kicker">{creatorOSBranding.shortName} · AI Mission Control</p>
+            <h2>{heroCopy.title}</h2>
+            <p className="cos-hero-text">{heroCopy.subtitle}</p>
+            <div className="cos-hero-actions">
+              <button type="button" className="btn btn-primary" onClick={scrollToUpload}>
+                Upload Dataset
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => onNavigate?.("insights")}>
+                Creator Insights öffnen
+              </button>
+            </div>
+          </div>
+          <div className="cos-hero-metrics">
+            <div className="cos-hero-metric">
+              <span>Uploads</span>
+              <strong>{stats.uploads}</strong>
+            </div>
+            <div className="cos-hero-metric">
+              <span>Prompts</span>
+              <strong>{stats.prompts}</strong>
+            </div>
+            <div className="cos-hero-metric">
+              <span>Scripts</span>
+              <strong>{stats.scripts}</strong>
+            </div>
+          </div>
+        </section>
         <div className="stats-grid">
           <StatsCard icon="✨" iconColor="purple" value={stats.prompts} label="Prompts generiert" />
           <StatsCard icon="🎬" iconColor="blue" value={stats.scripts} label="Scripts erstellt" />
           <StatsCard icon="📁" iconColor="green" value={stats.uploads} label="Uploads" />
           <StatsCard icon="⚡" iconColor="orange" value={profile?.totalCredits || 0} label="Credits" />
         </div>
-        <div className="card" style={{ marginBottom: "2rem" }}>
+        <div id="upload-section" className="card" style={{ marginBottom: "2rem" }}>
           <div className="card-header">
             <h2 className="card-title">📤 Posts hochladen</h2>
           </div>
@@ -418,7 +511,11 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
             }}
           />
         </div>
-        <UploadAnalyzerPro token={token} lastUpload={latestUpload} />
+        <UploadAnalyzerPro
+          token={token}
+          lastUpload={latestUpload}
+          onViewInsights={handleViewInsights}
+        />
         <ToolDescription {...toolDescriptions.upload} />
         <h2 style={{ marginBottom: "1rem" }}>🚀 Schnellzugriff</h2>
         <div className="tools-grid">
