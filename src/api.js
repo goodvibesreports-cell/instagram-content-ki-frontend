@@ -305,14 +305,33 @@ export async function updateGeneralSettings(token, settings) {
 // ==============================
 // Upload & Posts
 // ==============================
-export async function uploadPosts(file, token = null) {
+export async function uploadPosts(file, platform = "tiktok", token = null) {
   try {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("platform", platform);
     const authToken = getEffectiveToken(token);
     const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
     return (await api.post("/upload", formData, config)).data;
   } catch (err) { return handleError(err); }
+}
+
+export async function uploadFolder(files, token = null) {
+  try {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    const authToken = getEffectiveToken(token);
+    const config = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
+    return (await api.post("/upload/folder", formData, config)).data;
+  } catch (err) { return handleError(err); }
+}
+
+export async function fetchTikTokAnalysis(datasetId, token = null) {
+  try {
+    return (await api.get(`/upload/analysis/tiktok?datasetId=${datasetId}`, authHeader(token))).data;
+  } catch (err) {
+    return handleError(err);
+  }
 }
 
 export async function getUploadDatasets(token) {
@@ -323,6 +342,52 @@ export async function getUploadDatasets(token) {
 export async function getUploadDataset(token, id) {
   try { return (await api.get(`/upload/datasets/${id}`, authHeader(token))).data; }
   catch (err) { return handleError(err); }
+}
+
+export async function exportInsightsPdf(payload, token = null) {
+  try {
+    const authToken = getEffectiveToken(token);
+    const config = {
+      responseType: "blob",
+      headers: {
+        ...(authToken && { Authorization: `Bearer ${authToken}` })
+      }
+    };
+    return (await api.post("/export/pdf", payload, config)).data;
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function exportInsightsCsv(posts, token = null) {
+  try {
+    const authToken = getEffectiveToken(token);
+    const config = {
+      responseType: "blob",
+      headers: {
+        ...(authToken && { Authorization: `Bearer ${authToken}` })
+      }
+    };
+    return (await api.post("/export/csv", { posts }, config)).data;
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function generateShareLink(payload, token = null) {
+  try {
+    return (await api.post("/share/generate", { payload }, authHeader(token))).data;
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function fetchSharedInsights(token) {
+  try {
+    return (await api.get(`/share/${token}`)).data;
+  } catch (err) {
+    return handleError(err);
+  }
 }
 
 export async function getPosts(token = null, options = {}) {
@@ -370,6 +435,17 @@ export async function analyzeTrends(niche, token = null, options = {}) {
 export async function analyzeVirality(content, token = null, type = "full") {
   try { return (await api.post("/ai/virality", { content, type }, token ? authHeader(token) : {})).data; }
   catch (err) { return handleError(err); }
+}
+
+export async function getAISummary(analysis, token = null) {
+  try {
+    if (!analysis) {
+      throw new Error("Analyse-Daten fehlen");
+    }
+    return (await api.post("/ai/summary", { analysis }, token ? authHeader(token) : {})).data;
+  } catch (err) {
+    return handleError(err);
+  }
 }
 
 export async function getCreditCosts() {
