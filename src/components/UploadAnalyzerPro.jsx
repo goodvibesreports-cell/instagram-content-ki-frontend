@@ -30,6 +30,13 @@ function formatFileSize(bytes = 0) {
   return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function formatRangeLabel(range) {
+  if (!range || (!range.from && !range.to)) return "Alle Daten";
+  const from = range.from ? formatDate(range.from) : "Start";
+  const to = range.to ? formatDate(range.to) : "Heute";
+  return `${from} – ${to}`;
+}
+
 function InsightList({ title, items, valueLabel = "Ø Likes" }) {
   if (!items?.length) return null;
   return (
@@ -99,6 +106,11 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   const [unifiedAnalysis, setUnifiedAnalysis] = useState(null);
   const [error, setError] = useState(null);
   const [analysisInfo, setAnalysisInfo] = useState("");
+  const [dateFilters, setDateFilters] = useState({ fromDate: "", toDate: "" });
+  const [appliedFilters, setAppliedFilters] = useState({ fromDate: "", toDate: "" });
+  const [activeDateRange, setActiveDateRange] = useState(null);
+  const [activeItemCount, setActiveItemCount] = useState(0);
+  const [filtersError, setFiltersError] = useState("");
   const resetRef = useRef(resetSignal);
 
   const hasToken = Boolean(token);
@@ -114,6 +126,11 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
     setDetailLoading(false);
     setAnalysisLoading(false);
     setAnalysisInfo("");
+    setDateFilters({ fromDate: "", toDate: "" });
+    setAppliedFilters({ fromDate: "", toDate: "" });
+    setActiveDateRange(null);
+    setActiveItemCount(0);
+    setFiltersError("");
   }, [resetSignal]);
 
   const loadDatasets = useCallback(
@@ -140,6 +157,25 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
     },
     [token, selectedId]
   );
+
+  const handleFilterChange = useCallback((field, value) => {
+    setDateFilters((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  }, []);
+
+  const handleApplyFilters = useCallback(() => {
+    if (dateFilters.fromDate && dateFilters.toDate && dateFilters.fromDate > dateFilters.toDate) {
+      setFiltersError("Das Von-Datum darf nicht nach dem Bis-Datum liegen.");
+      return;
+    }
+    setFiltersError("");
+    setAppliedFilters({
+      fromDate: dateFilters.fromDate || "",
+      toDate: dateFilters.toDate || ""
+    });
+  }, [dateFilters]);
 
   const loadDatasetDetail = useCallback(
     async (datasetId, preset) => {
@@ -209,50 +245,61 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   }, [lastUpload, token, loadDatasetDetail]);
 
   useEffect(() => {
-    let isMounted = true;
     if (!token || !selectedDataset?._id) {
       setUnifiedAnalysis(null);
       setAnalysisInfo("");
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    if (selectedDataset.metadata?.analysis) {
-      setUnifiedAnalysis(selectedDataset.metadata.analysis);
-      setAnalysisInfo("");
+      setActiveDateRange(null);
+      setActiveItemCount(0);
       return undefined;
     }
 
+    const hasLocalAnalysis = Boolean(selectedDataset.metadata?.analysis) && !appliedFilters.fromDate && !appliedFilters.toDate;
+    if (hasLocalAnalysis) {
+      setUnifiedAnalysis(selectedDataset.metadata.analysis);
+      setActiveItemCount(selectedDataset.metadata.analysis.global?.itemCount ?? selectedDataset.videos?.length ?? 0);
+      setActiveDateRange(null);
+    } else if (!appliedFilters.fromDate && !appliedFilters.toDate) {
+      setUnifiedAnalysis(null);
+      setActiveItemCount(selectedDataset.videos?.length ?? 0);
+      setActiveDateRange(null);
+    }
+
+    let cancelled = false;
     setAnalysisLoading(true);
     setAnalysisInfo("");
-    fetchUnifiedAnalysis(selectedDataset._id, token)
+    fetchUnifiedAnalysis(selectedDataset._id, token, appliedFilters)
       .then((res) => {
-        if (!isMounted) return;
+        if (cancelled) return;
         if (res.success) {
           setUnifiedAnalysis(res.analysis || null);
           setAnalysisInfo(res.message || (!res.analysis ? "Keine Analyse verfügbar." : ""));
+          setActiveDateRange(res.dateRange || null);
+          setActiveItemCount(res.itemCount ?? res.analysis?.global?.itemCount ?? 0);
         } else {
           setUnifiedAnalysis(null);
           setAnalysisInfo("Analyse konnte nicht geladen werden.");
+          setActiveDateRange(null);
+          setActiveItemCount(0);
           setError(res.error?.message || "Analyse konnte nicht geladen werden");
         }
       })
       .catch((err) => {
-        if (isMounted) {
+        if (!cancelled) {
           setUnifiedAnalysis(null);
           setAnalysisInfo("Analyse konnte nicht geladen werden.");
+          setActiveDateRange(null);
+          setActiveItemCount(0);
           setError(err.message);
         }
       })
       .finally(() => {
-        if (isMounted) setAnalysisLoading(false);
+        if (!cancelled) setAnalysisLoading(false);
       });
 
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
-  }, [selectedDataset, token]);
+  }, [selectedDataset, token, appliedFilters]);
 
   if (!hasToken) {
     return (
@@ -353,10 +400,42 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                 </div>
               )}
 
+              <div className="analysis-filter-bar" style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                <label style={{ display: "flex", flexDirection: "column", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  Von
+                  <input
+                    type="date"
+                    value={dateFilters.fromDate}
+                    onChange={(e) => handleFilterChange("fromDate", e.target.value)}
+                  />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  Bis
+                  <input
+                    type="date"
+                    value={dateFilters.toDate}
+                    onChange={(e) => handleFilterChange("toDate", e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleApplyFilters}
+                  disabled={analysisLoading || !selectedDataset?._id}
+                >
+                  Analyse aktualisieren
+                </button>
+              </div>
+              {filtersError && (
+                <div className="status-message error" style={{ marginTop: "-0.5rem", marginBottom: "1rem" }}>
+                  {filtersError}
+                </div>
+              )}
+
               <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
                 <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <h3 style={{ margin: 0 }}>🌍 Globale Insights</h3>
-                  <span className="badge">{unifiedAnalysis?.global?.itemCount ?? sampleItems.length ?? 0} Posts</span>
+                  <span className="badge">{activeItemCount || unifiedAnalysis?.global?.itemCount || sampleItems.length || 0} Posts</span>
                 </header>
                 {analysisLoading ? (
                   <p style={{ color: "var(--text-muted)" }}>Analysiere Metadaten…</p>
@@ -378,6 +457,21 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                     </div>
                     <InsightList title="Beste Stunden" items={unifiedAnalysis.global.bestPostingHours} />
                     <InsightList title="Beste Wochentage" items={unifiedAnalysis.global.bestWeekdays} />
+                    {unifiedAnalysis.global.topHashtags?.length ? (
+                      <section>
+                        <h4 style={{ marginBottom: "0.35rem" }}>Top Hashtags</h4>
+                        <ul className="analysis-list">
+                          {unifiedAnalysis.global.topHashtags.slice(0, 10).map((entry) => (
+                            <li key={`global-hashtag-${entry.hashtag}`}>
+                              <strong>#{entry.hashtag}</strong>
+                              <span>
+                                · Ø Likes {numberFormatter.format(Math.round(entry.avgLikes || 0))} ({entry.uses}x verwendet)
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ) : null}
                   </>
                 ) : (
                   <>
@@ -385,9 +479,9 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                     {analysisInfo && <p className="card-subtitle">{analysisInfo}</p>}
                   </>
                 )}
-                {analysisInfo && unifiedAnalysis?.global && (
+                {(analysisInfo || activeDateRange) && unifiedAnalysis?.global && (
                   <p className="card-subtitle" style={{ marginTop: "0.5rem" }}>
-                    {analysisInfo}
+                    {analysisInfo || ""} {activeDateRange ? `· Zeitraum: ${formatRangeLabel(activeDateRange)}` : ""}
                   </p>
                 )}
               </div>

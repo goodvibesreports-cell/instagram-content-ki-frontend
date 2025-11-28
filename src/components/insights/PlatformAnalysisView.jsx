@@ -18,7 +18,33 @@ function formatDate(value) {
   }
 }
 
-export default function PlatformAnalysisView({ platform, datasetId, loading, error, analysis, videoCount, onBack }) {
+function formatRange(range) {
+  if (!range || (!range.from && !range.to)) return null;
+  const format = (val) => {
+    if (!val) return "Start";
+    try {
+      return new Date(val).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    } catch {
+      return val;
+    }
+  };
+  return `${format(range.from)} – ${range.to ? format(range.to) : "Heute"}`;
+}
+
+export default function PlatformAnalysisView({
+  platform,
+  datasetId,
+  loading,
+  error,
+  analysis,
+  videoCount,
+  onBack,
+  dateRange
+}) {
   if (loading) {
     return (
       <div className="card insights-card-shell">
@@ -50,6 +76,8 @@ export default function PlatformAnalysisView({ platform, datasetId, loading, err
   const bestHours = analysis.bestPostingHours || analysis.postingTimes?.hours || [];
   const bestDays = analysis.postingDaysOfWeek || analysis.postingTimes?.days || [];
   const topVideos = analysis.topVideos || [];
+  const topHashtags = analysis.topHashtags || [];
+  const formattedRange = formatRange(dateRange);
 
   return (
     <div className="card insights-card-shell">
@@ -64,6 +92,7 @@ export default function PlatformAnalysisView({ platform, datasetId, loading, err
         <div>
           <h2 className="card-title">📊 {platform.toUpperCase()} Insights</h2>
           <p className="card-subtitle">Dataset ID: {datasetId}</p>
+          {formattedRange && <p className="card-subtitle">Zeitraum: {formattedRange}</p>}
         </div>
         <div className="badge">
           {videoCount ?? stats.totalVideos ?? 0} Videos
@@ -161,6 +190,22 @@ export default function PlatformAnalysisView({ platform, datasetId, loading, err
           <div className="empty-state">Noch keine Top-Videos</div>
         )}
       </section>
+
+      {topHashtags.length ? (
+        <section>
+          <h3>Top Hashtags</h3>
+          <ul className="analysis-list">
+            {topHashtags.slice(0, 15).map((entry) => (
+              <li key={`${platform}-hashtag-${entry.hashtag}`}>
+                <strong>#{entry.hashtag}</strong>
+                <span>
+                  · Ø Likes {formatNumber(Math.round(entry.avgLikes || 0))} ({entry.uses}x verwendet)
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -359,35 +359,52 @@ export async function uploadUniversal(files, token = null) {
   return uploadFolder(normalized, token);
 }
 
-async function fetchPlatformAnalysis(platform, datasetId, token = null) {
+function buildAnalysisQuery(params = {}) {
+  const query = new URLSearchParams();
+  if (params.fromDate) {
+    query.append("fromDate", params.fromDate);
+  }
+  if (params.toDate) {
+    query.append("toDate", params.toDate);
+  }
+  return query;
+}
+
+async function fetchPlatformAnalysis(platform, datasetId, token = null, params = {}) {
   try {
     if (!platform || !datasetId) {
       throw new Error("Platform und datasetId werden benötigt");
     }
-    return (await api.get(`/upload/analysis/${platform.toLowerCase()}?datasetId=${datasetId}`, authHeader(token))).data;
+    const query = buildAnalysisQuery(params);
+    query.set("datasetId", datasetId);
+    const suffix = query.toString();
+    return (await api.get(`/upload/analysis/${platform.toLowerCase()}?${suffix}`, authHeader(token))).data;
   } catch (err) {
     return handleError(err);
   }
 }
 
-export function fetchTikTokAnalysis(datasetId, token = null) {
-  return fetchPlatformAnalysis("tiktok", datasetId, token);
+export function fetchTikTokAnalysis(datasetId, token = null, params = {}) {
+  return fetchPlatformAnalysis("tiktok", datasetId, token, params);
 }
 
-export function fetchInstagramAnalysis(datasetId, token = null) {
-  return fetchPlatformAnalysis("instagram", datasetId, token);
+export function fetchInstagramAnalysis(datasetId, token = null, params = {}) {
+  return fetchPlatformAnalysis("instagram", datasetId, token, params);
 }
 
-export function fetchFacebookAnalysis(datasetId, token = null) {
-  return fetchPlatformAnalysis("facebook", datasetId, token);
+export function fetchFacebookAnalysis(datasetId, token = null, params = {}) {
+  return fetchPlatformAnalysis("facebook", datasetId, token, params);
 }
 
-export async function fetchUnifiedAnalysis(datasetId, token = null) {
+export async function fetchUnifiedAnalysis(datasetId, token = null, params = {}) {
   try {
     if (!datasetId) {
       throw new Error("datasetId wird benötigt");
     }
-    return (await api.get(`/upload/analysis/unified/${datasetId}`, authHeader(token))).data;
+    const query = buildAnalysisQuery(params);
+    const suffix = query.toString();
+    const url = suffix ? `/upload/analysis/unified/${datasetId}?${suffix}` : `/upload/analysis/unified/${datasetId}`;
+    return (await api.get(url, authHeader(token))).data;
   } catch (err) {
     return handleError(err);
   }
