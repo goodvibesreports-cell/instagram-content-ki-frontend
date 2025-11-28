@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import {
   getUploadDataset,
+  fetchUnifiedAnalysis,
   exportInsightsPdf,
   exportInsightsCsv,
   generateShareLink
@@ -13,6 +14,67 @@ import CreatorDNASection from "../components/insights/CreatorDNASection.jsx";
 import AISummary from "../components/insights/AISummary.jsx";
 import { INSIGHTS_STORAGE_KEY } from "../constants/storageKeys";
 import "../components/insights/TikTokInsights.css";
+
+const numberFormatter = new Intl.NumberFormat("de-DE");
+
+function formatNumber(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return numberFormatter.format(Math.round(value));
+}
+
+function matchesDateFilters(entry = {}, filters = {}) {
+  if (!filters?.fromDate && !filters?.toDate) return true;
+  const ts =
+    typeof entry.timestamp === "number"
+      ? entry.timestamp
+      : entry.timestamp
+      ? Number(entry.timestamp)
+      : entry.date
+      ? Date.parse(entry.date)
+      : NaN;
+  if (!Number.isFinite(ts)) return false;
+  if (filters.fromDate) {
+    const start = new Date(filters.fromDate);
+    start.setHours(0, 0, 0, 0);
+    if (ts < start.getTime()) return false;
+  }
+  if (filters.toDate) {
+    const end = new Date(filters.toDate);
+    end.setHours(23, 59, 59, 999);
+    if (ts > end.getTime()) return false;
+  }
+  return true;
+}
+
+function formatDateRangeLabel(range) {
+  if (!range || (!range.from && !range.to)) return "Alle Daten";
+  const format = (value, fallback) => {
+    if (!value) return fallback;
+    try {
+      return new Date(value).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    } catch {
+      return fallback;
+    }
+  };
+  return `${format(range.from, "Start")} – ${format(range.to, "Heute")}`;
+}
+
+function formatTimelineDate(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+  } catch {
+    return "—";
+  }
+}
 
 export default function TikTokInsights({
   token,
@@ -27,6 +89,14 @@ export default function TikTokInsights({
   const [dataset, setDataset] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState(null);
+  const [unifiedAnalysis, setUnifiedAnalysis] = useState(datasetContext?.analysis || null);
+  const [dateFilters, setDateFilters] = useState({ fromDate: "", toDate: "" });
+  const [appliedFilters, setAppliedFilters] = useState({ fromDate: "", toDate: "" });
+  const [filtersError, setFiltersError] = useState("");
+  const [activeDateRange, setActiveDateRange] = useState(datasetContext?.dateRange || null);
+  const [itemCount, setItemCount] = useState(datasetContext?.itemCount || 0);
   const [aiSummary, setAiSummary] = useState(datasetContext?.aiSummary || null);
   const [notification, setNotification] = useState(null);
   const [actionLoading, setActionLoading] = useState({ pdf: false, csv: false, share: false });
@@ -45,71 +115,141 @@ export default function TikTokInsights({
   const datasetId = activeContext?.datasetId;
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function initialize() {
-      if (readOnly || !datasetId || !token) {
-        if (activeContext?.analysis) {
-          setDataset(activeContext);
-          setAiSummary(activeContext.aiSummary || null);
-        } else if (!token && !readOnly) {
-          setError("Bitte über den Upload-Analyzer ein Dataset auswählen.");
-        }
+    let cancelled = false;
+    async function loadDataset() {
+      if (!token || !datasetId || readOnly) {
+        setDataset(activeContext || null);
         setLoading(false);
         return;
       }
-
       setLoading(true);
       setError(null);
       try {
         const res = await getUploadDataset(token, datasetId);
-        if (!isMounted) return;
+        if (cancelled) return;
         if (!res.success) {
           setError(res.error?.message || "Dataset konnte nicht geladen werden.");
           setLoading(false);
           return;
         }
-        const enriched = {
+        setDataset({
           ...res.dataset,
-          analysis: res.dataset.metadata?.analysis || activeContext?.analysis,
-          meta: res.dataset.metadata?.meta || activeContext?.meta,
           profileName
-        };
-        setDataset(enriched);
-        setAiSummary(activeContext?.aiSummary || null);
+        });
         setLoading(false);
       } catch (err) {
-        if (!isMounted) return;
-        setError(err.message || "Dataset konnte nicht geladen werden.");
-        setLoading(false);
+        if (!cancelled) {
+          setError(err.message || "Dataset konnte nicht geladen werden.");
+          setLoading(false);
+        }
       }
     }
-
-    initialize();
+    loadDataset();
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
   }, [token, datasetId, readOnly, activeContext, profileName]);
 
-  const analysis = dataset?.analysis || activeContext?.analysis;
-  const meta = dataset?.meta || activeContext?.meta || analysis?.meta || {};
+  useEffect(() => {
+    if (!datasetId) {
+      setUnifiedAnalysis(activeContext?.analysis || null);
+      setActiveDateRange(activeContext?.dateRange || null);
+      setItemCount(activeContext?.itemCount || 0);
+      return;
+    }
+    if (!token || readOnly) {
+      setUnifiedAnalysis(activeContext?.analysis || null);
+      setActiveDateRange(activeContext?.dateRange || null);
+      setItemCount(activeContext?.itemCount || 0);
+      return;
+    }
+    let cancelled = false;
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    fetchUnifiedAnalysis(datasetId, token, appliedFilters)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setUnifiedAnalysis(res.analysis || null);
+          setItemCount(res.itemCount ?? res.analysis?.global?.itemCount ?? 0);
+          setActiveDateRange(res.dateRange || null);
+        } else {
+          setUnifiedAnalysis(null);
+          setAnalysisError(res.error?.message || "Analyse konnte nicht geladen werden.");
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setUnifiedAnalysis(null);
+          setAnalysisError(err.message || "Analyse konnte nicht geladen werden.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAnalysisLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [datasetId, token, appliedFilters, readOnly, activeContext]);
+
+  const availablePosts = useMemo(() => {
+    if (dataset?.videos?.length) return dataset.videos;
+    if (activeContext?.videos?.length) return activeContext.videos;
+    return [];
+  }, [dataset?.videos, activeContext?.videos]);
+
+  const filteredPosts = useMemo(() => {
+    if (!availablePosts.length) return [];
+    return availablePosts.filter((item) => matchesDateFilters(item, appliedFilters));
+  }, [availablePosts, appliedFilters]);
+
+  const topVideos = useMemo(() => {
+    if (!filteredPosts.length) return [];
+    return filteredPosts
+      .slice()
+      .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+      .slice(0, 6);
+  }, [filteredPosts]);
+
+  const postsPreview = useMemo(() => filteredPosts.slice(0, 10), [filteredPosts]);
+
+  const tiktokAnalysis = unifiedAnalysis?.perPlatform?.tiktok;
+  const globalAnalysis = unifiedAnalysis?.global;
+  const insightSource = tiktokAnalysis || globalAnalysis || null;
+  const followerGrowth = unifiedAnalysis?.followerGrowth || null;
+
   const datasetName = dataset?.sourceFilename || activeContext?.datasetName || "TikTok Export";
-  const basicStats = analysis?.basicStats || analysis?.stats || {};
-  const platformName = (analysis?.platform || dataset?.platform || dataset?.rawPlatform || "tiktok").toLowerCase();
-  const platformLabel = platformName.charAt(0).toUpperCase() + platformName.slice(1);
-  const processedLinks = meta?.processed_links_count ?? dataset?.totals?.links ?? basicStats.totalPosts ?? 0;
   const displayProfileName = activeContext?.profileName || profileName;
-  const tiktokInsights = analysis?.platformInsights?.tiktok || (analysis?.bestTimes ? analysis : null);
+  const platformName = "tiktok";
+  const platformLabel = "TikTok";
+
+  const summaryCards = useMemo(() => {
+    if (!insightSource) return [];
+    const bestHour = insightSource.bestPostingHours?.[0]?.hour ?? null;
+    const bestDay = insightSource.bestWeekdays?.[0]?.weekday ?? insightSource.bestWeekdays?.[0]?.day ?? null;
+    return [
+      { label: "Total Posts", value: formatNumber(insightSource.itemCount ?? filteredPosts.length ?? 0), icon: "🎬" },
+      { label: "Ø Likes", value: formatNumber(insightSource.avgLikes ?? 0), icon: "👍" },
+      { label: "Ø Comments", value: formatNumber(insightSource.avgComments ?? 0), icon: "💬" },
+      {
+        label: "Best Upload Time",
+        value: bestHour !== null ? `${String(bestHour).padStart(2, "0")}:00` : "—",
+        icon: "⏰"
+      },
+      { label: "Best Upload Day", value: bestDay || "—", icon: "📅" }
+    ];
+  }, [insightSource, filteredPosts.length]);
 
   useEffect(() => {
-    if (readOnly || !analysis) return;
+    if (readOnly || !insightSource) return;
     const derivedDatasetId = datasetId || dataset?._id || null;
     if (!derivedDatasetId) return;
     const signaturePayload = {
       datasetId: derivedDatasetId,
       updatedAt: dataset?.updatedAt || activeContext?.updatedAt || null,
-      items: analysis?.global?.itemCount ?? 0,
-      followers: analysis?.followerGrowth?.followersGained ?? 0
+      items: insightSource.itemCount || 0,
+      followers: followerGrowth?.followersGained || 0,
+      filters: appliedFilters
     };
     const signature = JSON.stringify(signaturePayload);
     if (contextSignatureRef.current === signature) {
@@ -119,16 +259,37 @@ export default function TikTokInsights({
     const contextPayload = {
       datasetId: derivedDatasetId,
       datasetName,
-      updatedAt: signaturePayload.updatedAt || new Date().toISOString(),
-      analysis,
-      meta,
+      updatedAt: dataset?.updatedAt || new Date().toISOString(),
+      analysis: unifiedAnalysis,
+      meta: dataset?.metadata?.summary || activeContext?.meta || {},
       profileName: displayProfileName,
       aiSummary,
-      platform: platformName
+      platform: platformName,
+      dateRange: activeDateRange,
+      itemCount: insightSource.itemCount
     };
     sessionStorage.setItem(INSIGHTS_STORAGE_KEY, JSON.stringify(contextPayload));
     onUpdateContext?.(contextPayload);
-  }, [analysis, meta, datasetId, dataset?.updatedAt, aiSummary, datasetName, displayProfileName, activeContext, onUpdateContext, readOnly, platformName]);
+  }, [
+    insightSource,
+    followerGrowth,
+    datasetId,
+    dataset?._id,
+    dataset?.updatedAt,
+    displayProfileName,
+    unifiedAnalysis,
+    activeContext,
+    aiSummary,
+    platformName,
+    readOnly,
+    onUpdateContext,
+    datasetName,
+    activeDateRange,
+    appliedFilters
+  ]);
+
+  const metaSummary = dataset?.metadata?.summary || activeContext?.meta || {};
+  const processedLinks = formatNumber(itemCount || filteredPosts.length);
 
   function showToast(message, type = "info") {
     setNotification({ message, type });
@@ -159,21 +320,20 @@ export default function TikTokInsights({
 
   async function handleExportPdf() {
     if (readOnly) return;
-    if (!analysis) {
+    if (!insightSource) {
       showToast("Keine Analyse-Daten verfügbar.", "error");
       return;
     }
     setActionLoading((prev) => ({ ...prev, pdf: true }));
     try {
       const charts = await captureCharts();
-      const exportAnalysis = tiktokInsights || analysis;
       const response = await exportInsightsPdf(
         {
-          analysis: exportAnalysis,
-          videos: tiktokInsights?.virality?.viralVideos || analysis.topPostsByLikes || [],
-          creatorDNA: exportAnalysis.creator_dna || exportAnalysis.creatorDNA,
+          analysis: insightSource,
+          videos: topVideos,
+          creatorDNA: insightSource.creatorDNA,
           aiSummary,
-          meta,
+          meta: metaSummary,
           datasetName,
           profileName: displayProfileName,
           charts
@@ -195,13 +355,13 @@ export default function TikTokInsights({
 
   async function handleExportCsv() {
     if (readOnly) return;
-    if (!dataset?.posts?.length) {
+    if (!filteredPosts.length) {
       showToast("Keine Post-Daten für CSV vorhanden.", "error");
       return;
     }
     setActionLoading((prev) => ({ ...prev, csv: true }));
     try {
-      const response = await exportInsightsCsv(dataset.posts, token);
+      const response = await exportInsightsCsv(filteredPosts, token);
       if (response?.success === false) {
         showToast(response.error?.message || "CSV export failed", "error");
         return;
@@ -217,7 +377,7 @@ export default function TikTokInsights({
 
   async function handleShareLink() {
     if (readOnly) return;
-    if (!analysis) {
+    if (!unifiedAnalysis) {
       showToast("Keine Analyse-Daten verfügbar.", "error");
       return;
     }
@@ -227,8 +387,8 @@ export default function TikTokInsights({
         {
           datasetName,
           profileName: displayProfileName,
-          analysis,
-          meta,
+          analysis: unifiedAnalysis,
+          meta: metaSummary,
           aiSummary,
           platform: platformName
         },
@@ -238,9 +398,7 @@ export default function TikTokInsights({
         showToast(response.error?.message || "Share-Link konnte nicht erstellt werden.", "error");
         return;
       }
-      const shareUrl =
-        response.data?.shareUrl ||
-        `${window.location.origin}/share/${response.data?.token}`;
+      const shareUrl = response.data?.shareUrl || `${window.location.origin}/share/${response.data?.token}`;
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
       }
@@ -252,46 +410,26 @@ export default function TikTokInsights({
     }
   }
 
-  const summaryCards = useMemo(() => {
-    if (!analysis) return [];
-    const bestHour =
-      (analysis.bestTimes?.bestHour !== undefined && analysis.bestTimes?.bestHour !== null
-        ? analysis.bestTimes.bestHour
-        : analysis.bestPostingHours?.[0]?.hour) ?? null;
-    const bestDay =
-      analysis.bestDays?.bestDay ||
-      analysis.bestDaysOfWeek?.[0]?.day ||
-      null;
-    return [
-      {
-        label: "Total Posts",
-        value: basicStats.totalPosts ?? meta?.total_posts ?? "—",
-        icon: "🎬"
-      },
-      {
-        label: "Avg Likes",
-        value: basicStats.avgLikes ?? (analysis.stats?.avgLikes ? Math.round(analysis.stats.avgLikes) : "—"),
-        icon: "👍"
-      },
-      {
-        label: "Median Likes",
-        value: analysis.stats?.medianLikes ? Math.round(analysis.stats.medianLikes) : "—",
-        icon: "📐"
-      },
-      {
-        label: "Best Upload Time",
-        value: bestHour !== null ? `${String(bestHour).padStart(2, "0")}:00` : "—",
-        icon: "⏰"
-      },
-      {
-        label: "Best Upload Day",
-        value: bestDay || "—",
-        icon: "📅"
-      }
-    ];
-  }, [analysis, meta, basicStats]);
+  const handleFilterChange = (field, value) => {
+    setDateFilters((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
-  if (loading) {
+  const handleApplyFilters = () => {
+    if (dateFilters.fromDate && dateFilters.toDate && dateFilters.fromDate > dateFilters.toDate) {
+      setFiltersError("Das Von-Datum darf nicht nach dem Bis-Datum liegen.");
+      return;
+    }
+    setFiltersError("");
+    setAppliedFilters({
+      fromDate: dateFilters.fromDate || "",
+      toDate: dateFilters.toDate || ""
+    });
+  };
+
+  if (loading || (analysisLoading && !insightSource)) {
     return (
       <div className="tiktok-insights-page">
         <div className="insights-section">Analysiere Dataset…</div>
@@ -299,10 +437,10 @@ export default function TikTokInsights({
     );
   }
 
-  if (!analysis) {
+  if (!insightSource) {
     return (
       <div className="insights-placeholder">
-        {error || "Keine Insights verfügbar. Bitte wähle im Upload Analyzer ein Dataset aus."}
+        {analysisError || error || "Keine Insights verfügbar. Bitte wähle im Upload Analyzer ein Dataset aus."}
       </div>
     );
   }
@@ -316,15 +454,52 @@ export default function TikTokInsights({
         </div>
         <div className="insights-meta">
           <span>📁 {datasetName}</span>
-          <span>
-            📅 {dataset?.updatedAt ? new Date(dataset.updatedAt).toLocaleString("de-DE") : "—"}
-          </span>
-          <span>
-            🔄 zuletzt aktualisiert:{" "}
-            {processedLinks} Links verarbeitet
-          </span>
+          <span>📅 {dataset?.updatedAt ? new Date(dataset.updatedAt).toLocaleString("de-DE") : "—"}</span>
+          <span>🔄 analysierte Posts: {processedLinks}</span>
         </div>
       </div>
+
+      <div className="analysis-filter-bar" style={{ marginBottom: "1rem" }}>
+        <label>
+          Von
+          <input
+            type="date"
+            value={dateFilters.fromDate}
+            onChange={(e) => handleFilterChange("fromDate", e.target.value)}
+            disabled={readOnly || !token}
+          />
+        </label>
+        <label>
+          Bis
+          <input
+            type="date"
+            value={dateFilters.toDate}
+            onChange={(e) => handleFilterChange("toDate", e.target.value)}
+            disabled={readOnly || !token}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleApplyFilters}
+          disabled={readOnly || !token || analysisLoading}
+        >
+          Analyse aktualisieren
+        </button>
+        {activeDateRange && (
+          <span className="analysis-range-label">Zeitraum: {formatDateRangeLabel(activeDateRange)}</span>
+        )}
+      </div>
+      {filtersError && (
+        <div className="status-message error" style={{ marginBottom: "1rem" }}>
+          {filtersError}
+        </div>
+      )}
+      {analysisError && (
+        <div className="status-message error" style={{ marginBottom: "1rem" }}>
+          {analysisError}
+        </div>
+      )}
 
       {(onBack || !readOnly) && (
         <div className="insights-action-bar">
@@ -339,8 +514,7 @@ export default function TikTokInsights({
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleExportPdf}
-                disabled={actionLoading.pdf}
-                title="Download as PDF"
+                disabled={actionLoading.pdf || analysisLoading}
               >
                 {actionLoading.pdf ? "Exportiere…" : "📄 Export PDF"}
               </button>
@@ -348,8 +522,7 @@ export default function TikTokInsights({
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleExportCsv}
-                disabled={actionLoading.csv}
-                title="Download CSV"
+                disabled={actionLoading.csv || analysisLoading}
               >
                 {actionLoading.csv ? "Erstelle CSV…" : "📊 Export CSV"}
               </button>
@@ -357,8 +530,7 @@ export default function TikTokInsights({
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleShareLink}
-                disabled={actionLoading.share}
-                title="Create shareable link"
+                disabled={actionLoading.share || analysisLoading}
               >
                 {actionLoading.share ? "Erstelle Link…" : "🔗 Share Public Link"}
               </button>
@@ -373,12 +545,132 @@ export default function TikTokInsights({
       )}
 
       <SummaryCards cards={summaryCards} />
-      <BestTimesCharts analysis={tiktokInsights || analysis} chartRefs={{ hoursRef: hourChartRef, daysRef: dayChartRef }} />
-      <TopVideosGrid videos={(tiktokInsights?.virality?.viralVideos || analysis.topPostsByLikes || [])} />
-      <CreatorDNASection dna={tiktokInsights?.creator_dna || analysis.creatorDNA} themes={analysis.themes} sounds={analysis.sounds} />
+      <BestTimesCharts analysis={insightSource} chartRefs={{ hoursRef: hourChartRef, daysRef: dayChartRef }} />
+      <TopVideosGrid videos={topVideos} />
+
+      {followerGrowth && (
+        <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>📈 Follower Wachstum</h3>
+            <span className="badge">{followerGrowth.followersGained} neue Follower</span>
+          </header>
+          <div className="stat-row">
+            <div>
+              <div className="stat-value">{formatNumber(followerGrowth.followersGained)}</div>
+              <div className="stat-label">Follower im Zeitraum</div>
+            </div>
+            <div>
+              <div className="stat-value">{formatNumber(followerGrowth.matchedFollowers || 0)}</div>
+              <div className="stat-label">Follows Posts zugeordnet</div>
+            </div>
+          </div>
+          {followerGrowth.postThatGainedMostFollowers && (
+            <div className="status-message info" style={{ marginBottom: "0.75rem" }}>
+              Meiste Follower ausgelöst von Post{" "}
+              <strong>{followerGrowth.postThatGainedMostFollowers.caption || "Unbenannter Post"}</strong>{" "}
+              ({formatNumber(followerGrowth.postThatGainedMostFollowers.followers)} neue Follower)
+              {followerGrowth.postThatGainedMostFollowers.link ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a href={followerGrowth.postThatGainedMostFollowers.link} target="_blank" rel="noreferrer">
+                    Link öffnen
+                  </a>
+                </>
+              ) : null}
+            </div>
+          )}
+          {followerGrowth.followerTimeline?.length ? (
+            (() => {
+              const maxCount = followerGrowth.followerTimeline.reduce(
+                (acc, entry) => Math.max(acc, entry.count || 0),
+                1
+              );
+              return (
+                <div className="timeline-list">
+                  {followerGrowth.followerTimeline.map((entry) => (
+                    <div
+                      key={entry.date}
+                      style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}
+                    >
+                      <div style={{ width: "120px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                        {formatTimelineDate(entry.date)}
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
+                          height: "6px",
+                          background: "var(--surface-muted)",
+                          borderRadius: "999px",
+                          position: "relative"
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: `${Math.min(100, (entry.count / maxCount) * 100)}%`,
+                            background: "var(--primary)",
+                            borderRadius: "999px"
+                          }}
+                        />
+                      </div>
+                      <div style={{ width: "40px", textAlign: "right", fontWeight: 600 }}>{entry.count}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          ) : (
+            <p style={{ color: "var(--text-muted)" }}>Keine Follower-Daten vorhanden.</p>
+          )}
+        </div>
+      )}
+
+      {postsPreview.length ? (
+        <section style={{ marginTop: "1.5rem" }}>
+          <h3>📋 Post-Beispiele</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Plattform</th>
+                  <th>Datum</th>
+                  <th>Caption</th>
+                  <th>Likes</th>
+                  <th>Kommentare</th>
+                </tr>
+              </thead>
+              <tbody>
+                {postsPreview.map((item, index) => (
+                  <tr key={item.link || index}>
+                    <td>{item.platform}</td>
+                    <td>{item.date ? new Date(item.date).toLocaleString("de-DE") : "—"}</td>
+                    <td style={{ textAlign: "left" }}>{item.caption || item.title || "—"}</td>
+                    <td style={{ textAlign: "center" }}>{formatNumber(item.likes || 0)}</td>
+                    <td style={{ textAlign: "center" }}>{formatNumber(item.comments || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <div className="status-message warning" style={{ marginTop: "1rem" }}>
+          Keine Posts im ausgewählten Zeitraum gefunden.
+        </div>
+      )}
+
+      <CreatorDNASection
+        dna={insightSource?.creatorDNA}
+        themes={insightSource?.themes}
+        sounds={insightSource?.sounds}
+      />
       <AISummary
         token={token}
-        analysis={tiktokInsights || analysis}
+        analysis={insightSource}
         datasetId={datasetId}
         summary={aiSummary}
         onSummaryChange={setAiSummary}

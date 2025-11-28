@@ -50,6 +50,36 @@ function formatTimelineDate(value) {
   }
 }
 
+function matchesDateFilters(entry, filters = {}) {
+  if (!filters?.fromDate && !filters?.toDate) return true;
+  const ts =
+    typeof entry.timestamp === "number"
+      ? entry.timestamp
+      : entry.timestamp
+      ? Number(entry.timestamp)
+      : entry.date
+      ? Date.parse(entry.date)
+      : NaN;
+  if (!Number.isFinite(ts)) {
+    return false;
+  }
+  if (filters.fromDate) {
+    const start = new Date(filters.fromDate);
+    start.setHours(0, 0, 0, 0);
+    if (ts < start.getTime()) {
+      return false;
+    }
+  }
+  if (filters.toDate) {
+    const end = new Date(filters.toDate);
+    end.setHours(23, 59, 59, 999);
+    if (ts > end.getTime()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function InsightList({ title, items, valueLabel = "Ø Likes" }) {
   if (!items?.length) return null;
   return (
@@ -328,11 +358,15 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   }
 
   const selectedSummary = selectedDataset?.metadata?.summary;
-  const sampleItems = selectedDataset?.videos?.slice(0, 10) || [];
+  const filteredPosts = useMemo(() => {
+    if (!selectedDataset?.videos?.length) return [];
+    return selectedDataset.videos.filter((item) => matchesDateFilters(item, appliedFilters));
+  }, [selectedDataset?.videos, appliedFilters]);
+  const sampleItems = filteredPosts.slice(0, 10);
   const totalPosts =
-    selectedDataset?.videos?.length ??
-    selectedDataset?.totals?.posts ??
-    selectedDataset?.metadata?.perPlatform?.tiktok?.count ??
+    filteredPosts.length ||
+    selectedDataset?.totals?.posts ||
+    selectedDataset?.metadata?.perPlatform?.tiktok?.count ||
     0;
   const hasPosts = totalPosts > 0;
 
