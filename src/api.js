@@ -63,6 +63,13 @@ function normalizeAuthPayload(payload, fallbackUser = null) {
 export function persistAuthSession(payload) {
   const normalized = normalizeAuthPayload(payload, payload?.user || payload?.data?.user);
   if (!normalized) return null;
+  if (normalized.user) {
+    const credits = Number(normalized.user.credits ?? 0);
+    const bonusCredits = Number(normalized.user.bonusCredits ?? 0);
+    normalized.user.totalCredits = Number.isFinite(normalized.user.totalCredits)
+      ? normalized.user.totalCredits
+      : credits + bonusCredits;
+  }
   return persistRawSession(normalized);
 }
 
