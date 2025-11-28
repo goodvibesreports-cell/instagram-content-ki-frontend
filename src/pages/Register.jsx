@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../api";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const INITIAL_FORM = {
   email: "",
@@ -9,8 +10,9 @@ const INITIAL_FORM = {
   confirmPassword: ""
 };
 
-export default function RegisterPage({ isAuthenticated, onLogin }) {
+export default function RegisterPage() {
   const nav = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState({ type: null, message: "" });
@@ -74,16 +76,8 @@ export default function RegisterPage({ isAuthenticated, onLogin }) {
 
     try {
       const response = await registerUser(form.email, form.password);
-      const payload = response.data;
-
-      if (onLogin && payload?.token) {
-        onLogin(response);
-        setStatus({ type: "success", message: response.message || "Account erstellt – weiter zur Creator DNA…" });
-        setTimeout(() => nav("/dna"), 500);
-      } else {
-        setStatus({ type: "success", message: response.message || "Registrierung erfolgreich!" });
-        setTimeout(() => nav("/login"), 800);
-      }
+      setStatus({ type: "success", message: response.message || "Registrierung erfolgreich!" });
+      setTimeout(() => nav("/login"), 800);
     } catch (err) {
       const detail = Array.isArray(err.details) && err.details.length ? err.details[0].message : null;
       setStatus({

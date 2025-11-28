@@ -10,108 +10,68 @@ import PublicSharePage from "./pages/PublicShare.jsx";
 import TikTokAnalyzerPro from "./pages/TikTokAnalyzerPro.jsx";
 import InstagramAnalyzerPro from "./pages/InstagramAnalyzerPro.jsx";
 import FacebookAnalyzerPro from "./pages/FacebookAnalyzerPro.jsx";
-import {
-  fetchMe,
-  logoutSession,
-  persistAuthSession,
-  getStoredSession,
-  updateStoredSession,
-  clearStoredSession
-} from "./api";
+import { useAuth } from "./context/AuthContext.jsx";
 
-function ProtectedRoute({ token, user, requireProfile = true, children }) {
-  if (!token) return <Navigate to="/login" replace />;
+function LoadingScreen() {
+  return (
+    <div className="loading-screen">
+      <div className="loading-spinner" />
+      <p>Starte CreatorOS…</p>
+    </div>
+  );
+}
+
+function ProtectedRoute({ requireProfile = true, children }) {
+  const { loading, isAuthenticated, user } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
   if (requireProfile && !user?.creatorProfile) {
     return <Navigate to="/dna" replace />;
   }
+
   return children;
 }
 
 export default function App() {
+  const {
+    session,
+    user,
+    credits,
+    logout,
+    updateCreatorProfile,
+    updateCredits,
+    isAuthenticated,
+    loading
+  } = useAuth();
   const navigateRouter = useNavigate();
   const location = useLocation();
-  const [session, setSession] = useState(() => getStoredSession());
-  const [user, setUser] = useState(null);
-  const [credits, setCredits] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [theme] = useState("dark");
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [viewVersion, setViewVersion] = useState(0);
   const token = session?.accessToken || null;
 
   useEffect(() => {
-    async function load() {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const res = await fetchMe(token);
-        setUser(res.data);
-        setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
-        const updated = updateStoredSession({ user: res.data });
-        if (updated) {
-          setSession(updated);
-        }
-      } catch (err) {
-        console.warn(err);
-        clearStoredSession();
-        setSession(null);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
+    if (location.pathname === "/dna") {
+      setCurrentPage("dna");
     }
-    load();
-  }, [token]);
-
-  const handleLogin = (authPayload) => {
-    const payload = authPayload?.data ?? authPayload;
-    const normalized = persistAuthSession(payload);
-    if (!normalized?.accessToken) {
-      console.warn("Login ohne gültige Tokens – Antwort prüfen", authPayload);
-      return;
-    }
-
-    setSession(normalized);
-    setCurrentPage("dashboard");
-
-    if (normalized.user) {
-      setUser(normalized.user);
-      setCredits(normalized.user.totalCredits ?? normalized.user.credits ?? 0);
-    } else {
-      fetchMe(normalized.accessToken)
-        .then((res) => {
-          setUser(res.data);
-          setCredits(res.data.totalCredits ?? res.data.credits ?? 0);
-          const updated = updateStoredSession({ user: res.data });
-          if (updated) {
-            setSession(updated);
-          }
-        })
-        .catch((err) => console.warn("Fetch after login fehlgeschlagen", err));
-    }
-  };
+  }, [location.pathname]);
 
   const handleLogout = () => {
-    const refreshToken = session?.refreshToken || null;
-    logoutSession(refreshToken).catch(() => {});
-    clearStoredSession();
-    setSession(null);
-    setUser(null);
-    setCredits(0);
-    setCurrentPage("dashboard");
+    logout().catch(() => {});
   };
 
   const handleProfileComplete = (profile) => {
-    setUser((prev) => ({ ...prev, creatorProfile: profile }));
-    const updated = updateStoredSession({
-      user: { creatorProfile: profile }
-    });
-    if (updated) {
-      setSession(updated);
-    }
+    updateCreatorProfile(profile);
     setCurrentPage("dashboard");
+    navigateRouter("/dashboard");
   };
 
   function handleNavigate(page) {
@@ -124,24 +84,19 @@ export default function App() {
   }
 
   if (loading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-        <p>Starte CreatorOS…</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage onLogin={handleLogin} isAuthenticated={!!token} />} />
-      <Route path="/register" element={<RegisterPage onLogin={handleLogin} isAuthenticated={!!token} />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/share/:token" element={<PublicSharePage />} />
       <Route
         path="/dna"
         element={(
-          <ProtectedRoute token={token} user={user} requireProfile={false}>
+          <ProtectedRoute requireProfile={false}>
             <Layout
               theme={theme}
               onToggleTheme={() => {}}
@@ -163,7 +118,7 @@ export default function App() {
       <Route
         path="/dashboard"
         element={(
-          <ProtectedRoute token={token} user={user}>
+          <ProtectedRoute>
             <Layout
               theme={theme}
               onToggleTheme={() => {}}
@@ -179,7 +134,7 @@ export default function App() {
                 currentPage={currentPage}
                 viewVersion={viewVersion}
                 onNavigate={handleNavigate}
-                onCreditsUpdate={setCredits}
+                onCreditsUpdate={updateCredits}
               />
             </Layout>
           </ProtectedRoute>
@@ -188,7 +143,7 @@ export default function App() {
       <Route
         path="/tiktok/insights/:id"
         element={(
-          <ProtectedRoute token={token} user={user}>
+          <ProtectedRoute>
             <Layout
               theme={theme}
               onLogout={handleLogout}
@@ -205,7 +160,7 @@ export default function App() {
       <Route
         path="/instagram/insights/:id"
         element={(
-          <ProtectedRoute token={token} user={user}>
+          <ProtectedRoute>
             <Layout
               theme={theme}
               onLogout={handleLogout}
@@ -222,7 +177,7 @@ export default function App() {
       <Route
         path="/facebook/insights/:id"
         element={(
-          <ProtectedRoute token={token} user={user}>
+          <ProtectedRoute>
             <Layout
               theme={theme}
               onLogout={handleLogout}
@@ -236,7 +191,10 @@ export default function App() {
           </ProtectedRoute>
         )}
       />
-      <Route path="*" element={<Navigate to={token ? (user?.creatorProfile ? "/dashboard" : "/dna") : "/login"} replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={isAuthenticated ? (user?.creatorProfile ? "/dashboard" : "/dna") : "/login"} replace />}
+      />
     </Routes>
   );
 }

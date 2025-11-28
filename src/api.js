@@ -138,7 +138,7 @@ async function refreshAccessToken() {
     throw new Error("Kein Refresh Token vorhanden");
   }
   const response = await axios.post(`${BACKEND_URL}/auth/refresh`, { refreshToken });
-  const payload = response.data?.data;
+  const payload = response.data;
   const session = persistAuthSession(payload);
   if (!session?.accessToken) {
     throw new Error("Session konnte nicht erneuert werden");
@@ -182,6 +182,9 @@ api.interceptors.response.use(
     } catch (refreshError) {
       resolveRefreshQueue(refreshError);
       clearStoredSession();
+      if (refreshError.response?.status === 401 && typeof window !== "undefined") {
+        window.location.replace("/login");
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
@@ -200,17 +203,20 @@ function normalizeError(err) {
     const error = new Error(message || "Unbekannter Fehler");
     error.code = code;
     error.details = details;
-    error.status = err.response.status;
+    error.status = err.response?.status;
     return error;
   }
 
   if (err.code === "ERR_NETWORK") {
     const error = new Error("Server nicht erreichbar. Bitte später erneut versuchen.");
     error.code = "ERR_NETWORK";
+    error.status = null;
     return error;
   }
 
-  return new Error(err.message || "Unbekannter Fehler");
+  const error = new Error(err.response?.data?.message || err.message || "Unbekannter Fehler");
+  error.status = err.response?.status;
+  return error;
 }
 
 async function request(promise) {

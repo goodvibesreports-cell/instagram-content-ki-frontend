@@ -1,15 +1,16 @@
 // src/pages/Login.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginUser } from "../api";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const INITIAL_FORM = {
   email: "",
   password: ""
 };
 
-export default function LoginPage({ onLogin, isAuthenticated }) {
+export default function LoginPage() {
   const nav = useNavigate();
+  const { login, isAuthenticated, mutating } = useAuth();
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState({ type: null, message: "" });
@@ -66,9 +67,8 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
     setStatus({ type: null, message: "" });
 
     try {
-      const response = await loginUser(form.email, form.password);
-      onLogin?.(response);
-      setStatus({ type: "success", message: response.message || "Login erfolgreich – weiterleiten…" });
+      await login(form.email, form.password);
+      setStatus({ type: "success", message: "Login erfolgreich – weiterleiten…" });
       setTimeout(() => nav("/dashboard"), 400);
     } catch (err) {
       const detail = Array.isArray(err.details) && err.details.length ? err.details[0].message : null;
@@ -149,8 +149,8 @@ export default function LoginPage({ onLogin, isAuthenticated }) {
             </button>
           </div>
 
-          <button type="submit" className="btn btn-primary auth-submit" disabled={isLoading}>
-            {isLoading ? "Wird geprüft…" : "Einloggen"}
+          <button type="submit" className="btn btn-primary auth-submit" disabled={isLoading || mutating}>
+            {isLoading || mutating ? "Wird geprüft…" : "Einloggen"}
           </button>
 
           {status.message && (
