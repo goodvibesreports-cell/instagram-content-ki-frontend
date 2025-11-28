@@ -37,6 +37,19 @@ function formatRangeLabel(range) {
   return `${from} – ${to}`;
 }
 
+function formatTimelineDate(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+  } catch {
+    return value;
+  }
+}
+
 function InsightList({ title, items, valueLabel = "Ø Likes" }) {
   if (!items?.length) return null;
   return (
@@ -485,6 +498,99 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                   </p>
                 )}
               </div>
+              {unifiedAnalysis?.followerGrowth && (
+                <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                  <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h3 style={{ margin: 0 }}>📈 Follower Wachstum</h3>
+                    <span className="badge">{unifiedAnalysis.followerGrowth.followersGained} neue Follower</span>
+                  </header>
+                  <div className="stat-row">
+                    <div>
+                      <div className="stat-value">
+                        {numberFormatter.format(unifiedAnalysis.followerGrowth.followersGained || 0)}
+                      </div>
+                      <div className="stat-label">Follower im Zeitraum</div>
+                    </div>
+                    <div>
+                      <div className="stat-value">
+                        {numberFormatter.format(unifiedAnalysis.followerGrowth.matchedFollowers || 0)}
+                      </div>
+                      <div className="stat-label">Follows Posts zugeordnet</div>
+                    </div>
+                  </div>
+                  {unifiedAnalysis.followerGrowth.postThatGainedMostFollowers && (
+                    <div className="status-message info" style={{ marginBottom: "0.75rem" }}>
+                      Meiste Follower ausgelöst von Post{" "}
+                      <strong>{unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.caption || "Unbenannter Post"}</strong>{" "}
+                      ({numberFormatter.format(unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.followers)} neue Follower)
+                      {unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.link ? (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <a
+                            href={unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.link}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Link öffnen
+                          </a>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                  {unifiedAnalysis.followerGrowth.followerTimeline?.length
+                    ? (() => {
+                        const maxCount = unifiedAnalysis.followerGrowth.followerTimeline.reduce(
+                          (acc, entry) => Math.max(acc, entry.count || 0),
+                          1
+                        );
+                        return (
+                          <div className="timeline-list">
+                            {unifiedAnalysis.followerGrowth.followerTimeline.map((entry) => (
+                              <div
+                                key={entry.date}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                  marginBottom: "0.35rem"
+                                }}
+                              >
+                                <div style={{ width: "120px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                                  {formatTimelineDate(entry.date)}
+                                </div>
+                                <div
+                                  style={{
+                                    flex: 1,
+                                    height: "6px",
+                                    background: "var(--surface-muted)",
+                                    borderRadius: "999px",
+                                    position: "relative"
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      left: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: `${Math.min(100, (entry.count / maxCount) * 100)}%`,
+                                      background: "var(--primary)",
+                                      borderRadius: "999px"
+                                    }}
+                                  />
+                                </div>
+                                <div style={{ width: "40px", textAlign: "right", fontWeight: 600 }}>{entry.count}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    : (
+                    <p style={{ color: "var(--text-muted)" }}>Keine Follower-Daten vorhanden.</p>
+                  )}
+                </div>
+              )}
 
               <div className="platform-grid">
                 {Object.entries(unifiedAnalysis?.perPlatform || {}).map(([platform, data]) => (

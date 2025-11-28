@@ -30,6 +30,7 @@ export default function TikTokInsights({
   const [aiSummary, setAiSummary] = useState(datasetContext?.aiSummary || null);
   const [notification, setNotification] = useState(null);
   const [actionLoading, setActionLoading] = useState({ pdf: false, csv: false, share: false });
+  const contextSignatureRef = useRef(null);
 
   const activeContext = useMemo(() => {
     if (datasetContext) return datasetContext;
@@ -102,10 +103,23 @@ export default function TikTokInsights({
 
   useEffect(() => {
     if (readOnly || !analysis) return;
+    const derivedDatasetId = datasetId || dataset?._id || null;
+    if (!derivedDatasetId) return;
+    const signaturePayload = {
+      datasetId: derivedDatasetId,
+      updatedAt: dataset?.updatedAt || activeContext?.updatedAt || null,
+      items: analysis?.global?.itemCount ?? 0,
+      followers: analysis?.followerGrowth?.followersGained ?? 0
+    };
+    const signature = JSON.stringify(signaturePayload);
+    if (contextSignatureRef.current === signature) {
+      return;
+    }
+    contextSignatureRef.current = signature;
     const contextPayload = {
-      datasetId: datasetId || dataset?._id || null,
+      datasetId: derivedDatasetId,
       datasetName,
-      updatedAt: dataset?.updatedAt || activeContext?.updatedAt || new Date().toISOString(),
+      updatedAt: signaturePayload.updatedAt || new Date().toISOString(),
       analysis,
       meta,
       profileName: displayProfileName,
@@ -114,7 +128,7 @@ export default function TikTokInsights({
     };
     sessionStorage.setItem(INSIGHTS_STORAGE_KEY, JSON.stringify(contextPayload));
     onUpdateContext?.(contextPayload);
-  }, [analysis, meta, datasetId, dataset?.updatedAt, aiSummary, datasetName, displayProfileName, activeContext, onUpdateContext, readOnly]);
+  }, [analysis, meta, datasetId, dataset?.updatedAt, aiSummary, datasetName, displayProfileName, activeContext, onUpdateContext, readOnly, platformName]);
 
   function showToast(message, type = "info") {
     setNotification({ message, type });
