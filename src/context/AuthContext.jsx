@@ -10,7 +10,6 @@ import {
   loginUser,
   fetchMe,
   logoutSession,
-  getCreatorProfile,
   persistAuthSession,
   getStoredSession,
   updateStoredSession,
@@ -104,27 +103,6 @@ export function AuthProvider({ children }) {
     return resolvedUser;
   }, [mergeSession]);
 
-  const hydrateCreator = useCallback(async (accessToken, baseUser = null) => {
-    if (!accessToken) return null;
-    try {
-      const profile = await getCreatorProfile(accessToken);
-      if (profile && typeof profile === "object") {
-        setCreator(profile);
-        const referenceUser = baseUser || user;
-        setCredits(resolveCredits(referenceUser, profile));
-        const profileData = profile.profile || profile;
-        if (profileData && typeof profileData === "object" && Object.keys(profileData).length) {
-          setUser((prev) => (prev ? { ...prev, creatorProfile: profileData } : prev));
-          mergeSession({ user: { creatorProfile: profileData } });
-        }
-      }
-      return profile;
-    } catch (err) {
-      console.warn("Creator-Profil konnte nicht geladen werden", err);
-      return null;
-    }
-  }, [user, mergeSession]);
-
   const bootstrap = useCallback(async () => {
     const stored = getStoredSession();
     applySession(stored);
@@ -136,8 +114,7 @@ export function AuthProvider({ children }) {
 
     try {
       const resolvedUser = await hydrateUser(stored.accessToken);
-      const creatorProfile = await hydrateCreator(stored.accessToken, resolvedUser);
-      setCredits(resolveCredits(resolvedUser, creatorProfile));
+      setCredits(resolveCredits(resolvedUser, null));
     } catch (err) {
       setError(err);
       if (err.status === 401 || /unauthorized/i.test(err.message || "")) {
@@ -146,7 +123,7 @@ export function AuthProvider({ children }) {
     } finally {
       setBootstrapping(false);
     }
-  }, [applySession, hydrateUser, hydrateCreator, handleLogout]);
+  }, [applySession, hydrateUser, handleLogout]);
 
   useEffect(() => {
     bootstrap();
@@ -163,29 +140,27 @@ export function AuthProvider({ children }) {
       }
 
       const sessionUser = sessionPayload.user || extractUser(response);
-      const creatorProfile = await hydrateCreator(sessionPayload.accessToken, sessionUser);
-      setCredits(resolveCredits(sessionUser, creatorProfile));
+      setCredits(resolveCredits(sessionUser, null));
 
-      return { user: sessionUser, creator: creatorProfile };
+      return { user: sessionUser };
     } catch (err) {
       setError(err);
       throw err;
     } finally {
       setMutating(false);
     }
-  }, [persistSession, hydrateCreator]);
+  }, [persistSession]);
 
   const refreshAccount = useCallback(async () => {
     if (!session?.accessToken) return;
     setMutating(true);
     try {
       const resolvedUser = await hydrateUser(session.accessToken);
-      const creatorProfile = await hydrateCreator(session.accessToken, resolvedUser);
-      setCredits(resolveCredits(resolvedUser, creatorProfile));
+      setCredits(resolveCredits(resolvedUser, null));
     } finally {
       setMutating(false);
     }
-  }, [session?.accessToken, hydrateUser, hydrateCreator]);
+  }, [session?.accessToken, hydrateUser]);
 
   const updateCreatorProfile = useCallback((profile) => {
     setCreator((prev) => ({ ...(prev || {}), profile }));

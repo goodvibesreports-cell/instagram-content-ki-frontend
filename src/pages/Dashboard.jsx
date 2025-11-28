@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx - v3.0
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import StatsCard from "../components/StatsCard.jsx";
 import UploadZone from "../components/UploadZone.jsx";
 import UploadAnalyzerPro from "../components/UploadAnalyzerPro.jsx";
@@ -208,12 +208,22 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
   // Style State
   const [styleForm, setStyleForm] = useState({});
   const [analyzerResetKey, setAnalyzerResetKey] = useState(0);
+  const profileLoadRef = useRef({ token: null, loading: false, done: false });
   
-  // Load data
+  // Load data once per token
   useEffect(() => {
+    if (!token) {
+      profileLoadRef.current = { token: null, loading: false, done: false };
+      return;
+    }
+    const currentState = profileLoadRef.current;
+    if (currentState.loading) return;
+    if (currentState.done && currentState.token === token) return;
+
+    let cancelled = false;
+    profileLoadRef.current = { token, loading: true, done: false };
+
     async function loadData() {
-      if (!token) return;
-      
       const profileRes = await getProfile(token);
       if (profileRes.success) {
         setProfile(profileRes.data.user);
@@ -225,15 +235,26 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
         setStyleForm(profileRes.data.user.contentStyle || {});
         onCreditsUpdate?.(profileRes.data.user.totalCredits);
       }
-      
+
       const historyRes = await getHistory(token, { limit: 5 });
       if (historyRes.success) setHistory(historyRes.data.history);
-      
+
       const orgRes = await getOrganization(token);
       if (orgRes.success) setOrganization(orgRes.data.organization);
     }
-    loadData();
-  }, [token]);
+
+    loadData()
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) {
+          profileLoadRef.current = { token, loading: false, done: true };
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, onCreditsUpdate]);
 
   useEffect(() => {
     setResult(null);
@@ -288,8 +309,6 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
         let content = response.data.prompts?.[0] || response.data.videoIdeas?.[0]?.idea ||
           response.data.hooks || response.data.captions || response.data.titles || response.data.analysis;
         setResult(content);
-        const profileRes = await getProfile(token);
-        if (profileRes.success) onCreditsUpdate?.(profileRes.data.user.totalCredits);
       } else {
         setError(response.error?.message || "Fehler");
       }
@@ -310,8 +329,6 @@ export default function Dashboard({ token, userEmail, currentPage, onCreditsUpda
     setIsLoading(false);
     if (res.success) {
       setBatchResult(res.data);
-      const profileRes = await getProfile(token);
-      if (profileRes.success) onCreditsUpdate?.(profileRes.data.user.totalCredits);
     } else { setError(res.error?.message); }
   }
   
