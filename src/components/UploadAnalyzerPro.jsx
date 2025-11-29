@@ -80,13 +80,24 @@ function matchesDateFilters(entry, filters = {}) {
   return true;
 }
 
-function InsightList({ title, items, valueLabel = "Ø Likes" }) {
+function resolveFollowerGrowthStats(growth = null) {
+  if (!growth) return null;
+  return {
+    total: growth.totalFollowersGained ?? growth.followersGained ?? 0,
+    matched: growth.matchedFollowers ?? null,
+    timeline: growth.timeline || growth.followerTimeline || [],
+    topPost: growth.postThatGainedMostFollowers || growth.topPost || null
+  };
+}
+
+function InsightList({ title, items, valueLabel = "Ø Likes", limit = 5 }) {
   if (!items?.length) return null;
+  const rows = items.slice(0, limit);
   return (
     <section style={{ marginBottom: "1rem" }}>
       <h4 style={{ marginBottom: "0.35rem" }}>{title}</h4>
       <ul className="analysis-list">
-        {items.map((entry, idx) => (
+        {rows.map((entry, idx) => (
           <li key={`${title}-${idx}`}>
             <strong>{entry.hour !== undefined ? `${String(entry.hour).padStart(2, "0")}:00` : entry.weekday || entry.hashtag}</strong>
             <span>
@@ -124,7 +135,7 @@ function PlatformSection({ platform, data }) {
         <section>
           <h4 style={{ marginBottom: "0.35rem" }}>Top Hashtags</h4>
           <ul className="analysis-list">
-            {data.topHashtags.slice(0, 10).map((entry) => (
+            {data.topHashtags.slice(0, 20).map((entry) => (
               <li key={`${platform}-hashtag-${entry.hashtag}`}>
                 <strong>#{entry.hashtag}</strong>
                 <span>
@@ -157,6 +168,9 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   const resetRef = useRef(resetSignal);
 
   const hasToken = Boolean(token);
+  const globalStats = unifiedAnalysis?.global || null;
+  const perPlatform = unifiedAnalysis?.perPlatform || {};
+  const followerStats = useMemo(() => resolveFollowerGrowthStats(unifiedAnalysis?.followerGrowth), [unifiedAnalysis?.followerGrowth]);
 
   useEffect(() => {
     if (resetRef.current === resetSignal) return;
@@ -293,18 +307,19 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
       setAnalysisInfo("");
       setActiveDateRange(null);
       setActiveItemCount(0);
+      setAnalysisLoading(false);
       return undefined;
     }
 
     const hasLocalAnalysis = Boolean(selectedDataset.metadata?.analysis) && !appliedFilters.fromDate && !appliedFilters.toDate;
     if (hasLocalAnalysis) {
-      setUnifiedAnalysis(selectedDataset.metadata.analysis);
-      setActiveItemCount(selectedDataset.metadata.analysis.global?.itemCount ?? selectedDataset.videos?.length ?? 0);
+      const localAnalysis = selectedDataset.metadata.analysis;
+      setUnifiedAnalysis(localAnalysis);
+      setAnalysisInfo("");
       setActiveDateRange(null);
-    } else if (!appliedFilters.fromDate && !appliedFilters.toDate) {
-      setUnifiedAnalysis(null);
-      setActiveItemCount(selectedDataset.videos?.length ?? 0);
-      setActiveDateRange(null);
+      setActiveItemCount(localAnalysis.global?.itemCount ?? selectedDataset.videos?.length ?? 0);
+      setAnalysisLoading(false);
+      return undefined;
     }
 
     let cancelled = false;
@@ -482,33 +497,29 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
               <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
                 <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <h3 style={{ margin: 0 }}>🌍 Globale Insights</h3>
-                  <span className="badge">{activeItemCount || unifiedAnalysis?.global?.itemCount || sampleItems.length || 0} Posts</span>
+                  <span className="badge">{activeItemCount || globalStats?.itemCount || sampleItems.length || 0} Posts</span>
                 </header>
                 {analysisLoading ? (
                   <p style={{ color: "var(--text-muted)" }}>Analysiere Metadaten…</p>
-                ) : unifiedAnalysis?.global ? (
+                ) : globalStats ? (
                   <>
                     <div className="stat-row">
                       <div>
-                        <div className="stat-value">
-                          {numberFormatter.format(Math.round(unifiedAnalysis.global.avgLikes || 0))}
-                        </div>
+                        <div className="stat-value">{numberFormatter.format(Math.round(globalStats.avgLikes || 0))}</div>
                         <div className="stat-label">Ø Likes</div>
                       </div>
                       <div>
-                        <div className="stat-value">
-                          {numberFormatter.format(Math.round(unifiedAnalysis.global.avgComments || 0))}
-                        </div>
+                        <div className="stat-value">{numberFormatter.format(Math.round(globalStats.avgComments || 0))}</div>
                         <div className="stat-label">Ø Comments</div>
                       </div>
                     </div>
-                    <InsightList title="Beste Stunden" items={unifiedAnalysis.global.bestPostingHours} />
-                    <InsightList title="Beste Wochentage" items={unifiedAnalysis.global.bestWeekdays} />
-                    {unifiedAnalysis.global.topHashtags?.length ? (
+                    <InsightList title="Beste Stunden" items={globalStats.bestPostingHours} />
+                    <InsightList title="Beste Wochentage" items={globalStats.bestWeekdays} />
+                    {globalStats.topHashtags?.length ? (
                       <section>
                         <h4 style={{ marginBottom: "0.35rem" }}>Top Hashtags</h4>
                         <ul className="analysis-list">
-                          {unifiedAnalysis.global.topHashtags.slice(0, 10).map((entry) => (
+                          {globalStats.topHashtags.slice(0, 20).map((entry) => (
                             <li key={`global-hashtag-${entry.hashtag}`}>
                               <strong>#{entry.hashtag}</strong>
                               <span>
@@ -526,43 +537,39 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                     {analysisInfo && <p className="card-subtitle">{analysisInfo}</p>}
                   </>
                 )}
-                {(analysisInfo || activeDateRange) && unifiedAnalysis?.global && (
+                {(analysisInfo || activeDateRange) && globalStats && (
                   <p className="card-subtitle" style={{ marginTop: "0.5rem" }}>
                     {analysisInfo || ""} {activeDateRange ? `· Zeitraum: ${formatRangeLabel(activeDateRange)}` : ""}
                   </p>
                 )}
               </div>
-              {unifiedAnalysis?.followerGrowth && (
+              {followerStats && (
                 <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
                   <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 style={{ margin: 0 }}>📈 Follower Wachstum</h3>
-                    <span className="badge">{unifiedAnalysis.followerGrowth.followersGained} neue Follower</span>
+                    <span className="badge">{followerStats.total} neue Follower</span>
                   </header>
                   <div className="stat-row">
                     <div>
-                      <div className="stat-value">
-                        {numberFormatter.format(unifiedAnalysis.followerGrowth.followersGained || 0)}
-                      </div>
+                      <div className="stat-value">{numberFormatter.format(followerStats.total || 0)}</div>
                       <div className="stat-label">Follower im Zeitraum</div>
                     </div>
                     <div>
-                      <div className="stat-value">
-                        {numberFormatter.format(unifiedAnalysis.followerGrowth.matchedFollowers || 0)}
-                      </div>
+                      <div className="stat-value">{numberFormatter.format(followerStats.matched || 0)}</div>
                       <div className="stat-label">Follows Posts zugeordnet</div>
                     </div>
                   </div>
-                  {unifiedAnalysis.followerGrowth.postThatGainedMostFollowers && (
+                  {followerStats.topPost && (
                     <div className="status-message info" style={{ marginBottom: "0.75rem" }}>
                       Meiste Follower ausgelöst von Post{" "}
-                      <strong>{unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.caption || "Unbenannter Post"}</strong>{" "}
-                      ({numberFormatter.format(unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.followers)} neue Follower)
-                      {unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.link ? (
+                      <strong>{followerStats.topPost.caption || "Unbenannter Post"}</strong>{" "}
+                      ({numberFormatter.format(followerStats.topPost.followers || followerStats.topPost.followersGained || 0)} neue Follower)
+                      {followerStats.topPost.link ? (
                         <>
                           {" "}
                           ·{" "}
                           <a
-                            href={unifiedAnalysis.followerGrowth.postThatGainedMostFollowers.link}
+                            href={followerStats.topPost.link}
                             target="_blank"
                             rel="noreferrer"
                           >
@@ -572,15 +579,15 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                       ) : null}
                     </div>
                   )}
-                  {unifiedAnalysis.followerGrowth.followerTimeline?.length
+                  {followerStats.timeline.length
                     ? (() => {
-                        const maxCount = unifiedAnalysis.followerGrowth.followerTimeline.reduce(
-                          (acc, entry) => Math.max(acc, entry.count || 0),
+                        const maxCount = followerStats.timeline.reduce(
+                          (acc, entry) => Math.max(acc, entry.count || entry.gained || 0),
                           1
                         );
                         return (
                           <div className="timeline-list">
-                            {unifiedAnalysis.followerGrowth.followerTimeline.map((entry) => (
+                            {followerStats.timeline.map((entry) => (
                               <div
                                 key={entry.date}
                                 style={{
@@ -608,13 +615,15 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                                       left: 0,
                                       top: 0,
                                       bottom: 0,
-                                      width: `${Math.min(100, (entry.count / maxCount) * 100)}%`,
+                                      width: `${Math.min(100, (((entry.count ?? entry.gained) || 0) / maxCount) * 100)}%`,
                                       background: "var(--primary)",
                                       borderRadius: "999px"
                                     }}
                                   />
                                 </div>
-                                <div style={{ width: "40px", textAlign: "right", fontWeight: 600 }}>{entry.count}</div>
+                                <div style={{ width: "40px", textAlign: "right", fontWeight: 600 }}>
+                                  {entry.count ?? entry.gained ?? 0}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -627,7 +636,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
               )}
 
               <div className="platform-grid">
-                {Object.entries(unifiedAnalysis?.perPlatform || {}).map(([platform, data]) => (
+                {Object.entries(perPlatform).map(([platform, data]) => (
                   <PlatformSection key={platform} platform={platform} data={data} />
                 ))}
               </div>
