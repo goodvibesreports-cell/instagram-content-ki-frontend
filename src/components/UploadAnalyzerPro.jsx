@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchUnifiedAnalysis, getUploadDataset, getUploadDatasets } from "../api.js";
 
 const numberFormatter = new Intl.NumberFormat("de-DE");
