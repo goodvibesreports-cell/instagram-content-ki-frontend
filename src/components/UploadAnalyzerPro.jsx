@@ -83,10 +83,10 @@ function matchesDateFilters(entry, filters = {}) {
 function resolveFollowerGrowthStats(growth = null) {
   if (!growth) return null;
   return {
-    total: growth.totalFollowersGained ?? growth.followersGained ?? 0,
-    matched: growth.matchedFollowers ?? null,
-    timeline: growth.timeline || growth.followerTimeline || [],
-    topPost: growth.postThatGainedMostFollowers || growth.topPost || null
+    total: growth.totalFollowers ?? growth.totalFollower ?? growth.followersGained ?? 0,
+    timeline: growth.followerTimeline || growth.timeline || [],
+    topPost: growth.topPost || growth.postThatGainedMostFollowers || null,
+    postGains: growth.postGains || []
   };
 }
 
@@ -170,7 +170,10 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
   const hasToken = Boolean(token);
   const globalStats = unifiedAnalysis?.global || null;
   const perPlatform = unifiedAnalysis?.perPlatform || {};
-  const followerStats = useMemo(() => resolveFollowerGrowthStats(unifiedAnalysis?.followerGrowth), [unifiedAnalysis?.followerGrowth]);
+  const followerStats = useMemo(
+    () => resolveFollowerGrowthStats(unifiedAnalysis?.follower || unifiedAnalysis?.followerGrowth || null),
+    [unifiedAnalysis?.follower, unifiedAnalysis?.followerGrowth]
+  );
 
   useEffect(() => {
     if (resetRef.current === resetSignal) return;
@@ -284,6 +287,7 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
         posts: lastUpload.count || 0,
         links: lastUpload.count || 0
       },
+      posts: lastUpload.posts || lastUpload.itemsPreview || [],
       videos: lastUpload.posts || lastUpload.itemsPreview || [],
       createdAt: lastUpload.dataset?.createdAt || new Date().toISOString(),
       metadata: {
@@ -317,7 +321,9 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
       setUnifiedAnalysis(localAnalysis);
       setAnalysisInfo("");
       setActiveDateRange(null);
-      setActiveItemCount(localAnalysis.global?.itemCount ?? selectedDataset.videos?.length ?? 0);
+      setActiveItemCount(
+        localAnalysis.global?.itemCount ?? selectedDataset.posts?.length ?? selectedDataset.videos?.length ?? 0
+      );
       setAnalysisLoading(false);
       return undefined;
     }
@@ -374,9 +380,14 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
 
   const selectedSummary = selectedDataset?.metadata?.summary;
   const filteredPosts = useMemo(() => {
-    if (!selectedDataset?.videos?.length) return [];
-    return selectedDataset.videos.filter((item) => matchesDateFilters(item, appliedFilters));
-  }, [selectedDataset?.videos, appliedFilters]);
+    const sourcePosts = selectedDataset?.posts?.length
+      ? selectedDataset.posts
+      : selectedDataset?.videos?.length
+      ? selectedDataset.videos
+      : [];
+    if (!sourcePosts.length) return [];
+    return sourcePosts.filter((item) => matchesDateFilters(item, appliedFilters));
+  }, [selectedDataset?.posts, selectedDataset?.videos, appliedFilters]);
   const sampleItems = filteredPosts.slice(0, 10);
   const totalPosts =
     filteredPosts.length ||
@@ -513,6 +524,16 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                         <div className="stat-label">Ø Comments</div>
                       </div>
                     </div>
+                    <div className="stat-row" style={{ marginTop: "0.75rem" }}>
+                      <div>
+                        <div className="stat-label">Erster Post</div>
+                        <div className="stat-value" style={{ fontSize: "1rem" }}>{formatDate(globalStats.firstPostDate)}</div>
+                      </div>
+                      <div>
+                        <div className="stat-label">Letzter Post</div>
+                        <div className="stat-value" style={{ fontSize: "1rem" }}>{formatDate(globalStats.lastPostDate)}</div>
+                      </div>
+                    </div>
                     <InsightList title="Beste Stunden" items={globalStats.bestPostingHours} />
                     <InsightList title="Beste Wochentage" items={globalStats.bestWeekdays} />
                     {globalStats.topHashtags?.length ? (
@@ -555,15 +576,15 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                       <div className="stat-label">Follower im Zeitraum</div>
                     </div>
                     <div>
-                      <div className="stat-value">{numberFormatter.format(followerStats.matched || 0)}</div>
-                      <div className="stat-label">Follows Posts zugeordnet</div>
+                      <div className="stat-value">{numberFormatter.format(followerStats.postGains?.length || 0)}</div>
+                      <div className="stat-label">Posts mit Wachstum</div>
                     </div>
                   </div>
                   {followerStats.topPost && (
                     <div className="status-message info" style={{ marginBottom: "0.75rem" }}>
                       Meiste Follower ausgelöst von Post{" "}
                       <strong>{followerStats.topPost.caption || "Unbenannter Post"}</strong>{" "}
-                      ({numberFormatter.format(followerStats.topPost.followers || followerStats.topPost.followersGained || 0)} neue Follower)
+                      ({numberFormatter.format(followerStats.topPost.followersGained || followerStats.topPost.followers || 0)} neue Follower)
                       {followerStats.topPost.link ? (
                         <>
                           {" "}
@@ -632,6 +653,19 @@ export default function UploadAnalyzerPro({ token, lastUpload, onViewInsights = 
                     : (
                     <p style={{ color: "var(--text-muted)" }}>Keine Follower-Daten vorhanden.</p>
                   )}
+                  {followerStats.postGains?.length ? (
+                    <section style={{ marginTop: "1rem" }}>
+                      <h4 style={{ marginBottom: "0.35rem" }}>Follower pro Post</h4>
+                      <ul className="analysis-list">
+                        {followerStats.postGains.slice(0, 5).map((entry) => (
+                          <li key={`post-gain-${entry.postId || entry.link}`}>
+                            <strong>{entry.caption || entry.postId}</strong>
+                            <span>· +{numberFormatter.format(entry.followersGained || entry.followers || 0)} Follower</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
                 </div>
               )}
 

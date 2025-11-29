@@ -76,12 +76,26 @@ function formatTimelineDate(value) {
   }
 }
 
+function formatShortDate(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+  } catch {
+    return "—";
+  }
+}
+
 function resolveFollowerGrowthStats(growth = null) {
   if (!growth) return null;
   return {
-    total: growth.totalFollowersGained ?? growth.followersGained ?? 0,
-    timeline: growth.timeline || growth.followerTimeline || [],
-    topPost: growth.postThatGainedMostFollowers || growth.topPost || null
+    total: growth.totalFollowers ?? growth.totalFollower ?? growth.followersGained ?? 0,
+    timeline: growth.followerTimeline || growth.timeline || [],
+    topPost: growth.topPost || growth.postThatGainedMostFollowers || null,
+    postGains: growth.postGains || []
   };
 }
 
@@ -258,10 +272,12 @@ export default function TikTokInsights({
   }, [datasetId, token, appliedFilters, readOnly, datasetContext, dataset, activeContext]);
 
   const availablePosts = useMemo(() => {
+    if (dataset?.posts?.length) return dataset.posts;
     if (dataset?.videos?.length) return dataset.videos;
+    if (activeContext?.posts?.length) return activeContext.posts;
     if (activeContext?.videos?.length) return activeContext.videos;
     return [];
-  }, [dataset?.videos, activeContext?.videos]);
+  }, [dataset?.posts, dataset?.videos, activeContext?.posts, activeContext?.videos]);
 
   const filteredPosts = useMemo(() => {
     if (!availablePosts.length) return [];
@@ -283,7 +299,8 @@ export default function TikTokInsights({
   const globalAnalysis = resolvedAnalysis?.global || null;
   const tiktokAnalysis = perPlatform.tiktok || null;
   const insightSource = tiktokAnalysis || globalAnalysis || null;
-  const followerStats = resolveFollowerGrowthStats(resolvedAnalysis?.followerGrowth || null);
+  const followerStats = resolveFollowerGrowthStats(resolvedAnalysis?.follower || resolvedAnalysis?.followerGrowth || null);
+  const topHashtags = insightSource?.topHashtags || [];
 
   const datasetName = dataset?.sourceFilename || activeContext?.datasetName || "TikTok Export";
   const displayProfileName = activeContext?.profileName || profileName;
@@ -303,7 +320,9 @@ export default function TikTokInsights({
         value: bestHour !== null ? `${String(bestHour).padStart(2, "0")}:00` : "—",
         icon: "⏰"
       },
-      { label: "Best Upload Day", value: bestDay || "—", icon: "📅" }
+      { label: "Best Upload Day", value: bestDay || "—", icon: "📅" },
+      { label: "Erster Post", value: formatShortDate(insightSource.firstPostDate), icon: "🚀" },
+      { label: "Letzter Post", value: formatShortDate(insightSource.lastPostDate), icon: "🏁" }
     ];
   }, [insightSource, filteredPosts.length]);
 
@@ -315,7 +334,6 @@ export default function TikTokInsights({
       datasetId: derivedDatasetId,
       updatedAt: dataset?.updatedAt || activeContext?.updatedAt || null,
       items: insightSource.itemCount || 0,
-      followers: followerStats?.total || 0,
       filters: appliedFilters
     };
     const signature = JSON.stringify(signaturePayload);
@@ -614,6 +632,23 @@ export default function TikTokInsights({
 
       <SummaryCards cards={summaryCards} />
       <BestTimesCharts analysis={globalAnalysis || insightSource} chartRefs={{ hoursRef: hourChartRef, daysRef: dayChartRef }} />
+      <div className="card" style={{ padding: "1rem", marginBottom: "1.25rem" }}>
+        <h3 style={{ marginTop: 0 }}>🏷️ Top Hashtags</h3>
+        {topHashtags.length ? (
+          <ul className="analysis-list">
+            {topHashtags.slice(0, 20).map((entry) => (
+              <li key={`hashtag-${entry.hashtag}`}>
+                <strong>#{entry.hashtag}</strong>
+                <span>
+                  · Ø Likes {formatNumber(entry.avgLikes || 0)} ({entry.uses || 0}x verwendet)
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: "var(--text-muted)" }}>Keine Hashtag-Daten im ausgewählten Zeitraum.</p>
+        )}
+      </div>
       <TopVideosGrid videos={topVideos} />
 
       {followerStats && (
@@ -627,12 +662,16 @@ export default function TikTokInsights({
               <div className="stat-value">{formatNumber(followerStats.total)}</div>
               <div className="stat-label">Follower im Zeitraum</div>
             </div>
+            <div>
+              <div className="stat-value">{formatNumber(followerStats.postGains?.length || 0)}</div>
+              <div className="stat-label">Posts mit Wachstum</div>
+            </div>
           </div>
           {followerStats.topPost && (
             <div className="status-message info" style={{ marginBottom: "0.75rem" }}>
               Meiste Follower ausgelöst von Post{" "}
               <strong>{followerStats.topPost.caption || "Unbenannter Post"}</strong>{" "}
-              ({formatNumber(followerStats.topPost.followers || followerStats.topPost.followersGained || 0)} neue Follower)
+              ({formatNumber(followerStats.topPost.followersGained || followerStats.topPost.followers || 0)} neue Follower)
               {followerStats.topPost.link ? (
                 <>
                   {" "}
@@ -692,6 +731,19 @@ export default function TikTokInsights({
           ) : (
             <p style={{ color: "var(--text-muted)" }}>Keine Follower-Daten vorhanden.</p>
           )}
+          {followerStats.postGains?.length ? (
+            <section style={{ marginTop: "1rem" }}>
+              <h4 style={{ marginBottom: "0.35rem" }}>Follower pro Post</h4>
+              <ul className="analysis-list">
+                {followerStats.postGains.slice(0, 5).map((entry) => (
+                  <li key={`tiktok-post-gain-${entry.postId || entry.link}`}>
+                    <strong>{entry.caption || entry.postId}</strong>
+                    <span>· +{formatNumber(entry.followersGained || entry.followers || 0)} Follower</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
       )}
 
