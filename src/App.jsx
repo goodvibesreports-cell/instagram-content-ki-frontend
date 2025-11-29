@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext.jsx";
-import AppRouter from "./router/index.jsx";
+import AppRouter from "./router.jsx";
 
 function LoadingScreen() {
   return (

@@ -1,15 +1,15 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import Layout from "../components/Layout.jsx";
-import LoginPage from "../pages/Login.jsx";
-import RegisterPage from "../pages/Register.jsx";
-import VerifyPage from "../pages/Verify.jsx";
-import CreatorDNAPage from "../pages/CreatorDNA.jsx";
-import DashboardPage from "../pages/Dashboard.jsx";
-import PublicSharePage from "../pages/PublicShare.jsx";
-import TikTokAnalyzerPro from "../pages/TikTokAnalyzerPro.jsx";
-import InstagramAnalyzerPro from "../pages/InstagramAnalyzerPro.jsx";
-import FacebookAnalyzerPro from "../pages/FacebookAnalyzerPro.jsx";
+import Layout from "./components/Layout.jsx";
+import LoginPage from "./pages/Login.jsx";
+import RegisterPage from "./pages/Register.jsx";
+import VerifyPage from "./pages/Verify.jsx";
+import CreatorDNAPage from "./pages/CreatorDNA.jsx";
+import DashboardPage from "./pages/Dashboard.jsx";
+import PublicSharePage from "./pages/PublicShare.jsx";
+import TikTokAnalyzerPro from "./pages/TikTokAnalyzerPro.jsx";
+import InstagramAnalyzerPro from "./pages/InstagramAnalyzerPro.jsx";
+import FacebookAnalyzerPro from "./pages/FacebookAnalyzerPro.jsx";
 
 function ProtectedRoute({ loading, fallback = null, isAuthenticated, hasProfile, requireProfile = true, children }) {
   const location = useLocation();
